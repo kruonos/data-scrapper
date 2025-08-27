@@ -11,6 +11,7 @@ from tkinter import (
     StringVar,
     Entry,
     filedialog,
+    messagebox,
 )
 
 from tqdm import tqdm_gui
@@ -18,20 +19,28 @@ from tqdm import tqdm_gui
 from trey import rename_pdfs
 
 
-def run_rename(input_path: str, dpi: int, pages: int) -> None:
+def run_rename(input_path: str, dpi: int, pages: int, run_btn: Button | None = None) -> None:
     if not input_path:
+        if run_btn is not None:
+            run_btn.config(state="normal")
         return
     out_zip = Path(input_path).with_name(
         Path(input_path).stem + "_renomeados.zip"
     )
-    rename_pdfs(
-        input_path,
-        out_zip,
-        dpi=dpi,
-        pages=pages,
-        jobs="auto",
-        progress_cls=tqdm_gui,
-    )
+    try:
+        rename_pdfs(
+            input_path,
+            out_zip,
+            dpi=dpi,
+            pages=pages,
+            jobs="auto",
+            progress_cls=tqdm_gui,
+        )
+    except Exception as exc:  # pylint: disable=broad-except
+        messagebox.showerror("Error", f"Failed to rename PDFs: {exc}")
+    finally:
+        if run_btn is not None:
+            run_btn.config(state="normal")
 
 
 def main() -> None:
@@ -54,9 +63,10 @@ def main() -> None:
             pg = int(pages_var.get()) if pages_var.get() else 2
         except ValueError:
             pg = 2
+        run_btn.config(state="disabled")
         threading.Thread(
             target=run_rename,
-            args=(input_var.get(), dpi_var.get(), pg),
+            args=(input_var.get(), dpi_var.get(), pg, run_btn),
             daemon=True,
         ).start()
 
@@ -76,7 +86,8 @@ def main() -> None:
     Label(root, text="Pages:").grid(row=2, column=0, sticky="w")
     Entry(root, textvariable=pages_var, width=5).grid(row=2, column=1, sticky="w")
 
-    Button(root, text="Run", command=start).grid(
+    run_btn = Button(root, text="Run", command=start)
+    run_btn.grid(
         row=3, column=0, columnspan=2, pady=10
     )
 
