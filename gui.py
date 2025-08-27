@@ -45,9 +45,7 @@ def run_rename(input_path: str, dpi: int, pages: int, run_btn: Button | None = N
         if run_btn is not None:
             run_btn.config(state="normal")
         return
-    out_zip = Path(input_path).with_name(
-        Path(input_path).stem + "_renomeados.zip"
-    )
+    out_zip = Path(input_path).with_name(Path(input_path).stem + "_renomeados.zip")
     try:
         rename_pdfs(
             input_path,
@@ -74,9 +72,7 @@ def main() -> None:
     pages_var = StringVar(value="2")
 
     def select_zip() -> None:
-        filename = filedialog.askopenfilename(
-            filetypes=[("Arquivos ZIP", "*.zip")]
-        )
+        filename = filedialog.askopenfilename(filetypes=[("Arquivos ZIP", "*.zip")])
         if filename:
             input_var.set(filename)
 
@@ -95,6 +91,7 @@ def main() -> None:
             args=(input_var.get(), dpi_var.get(), pg, run_btn),
             daemon=True,
         ).start()
+
     Button(
         root,
         text="Selecionar ZIP",
@@ -103,9 +100,8 @@ def main() -> None:
         fg="white",
         activebackground="gray20",
         activeforeground="white",
-    ).grid(
-        row=0, column=0, padx=5, pady=5, sticky="w"
-    )
+    ).grid(row=0, column=0, padx=5, pady=5, sticky="w")
+
     Label(
         root,
         textvariable=input_var,
@@ -113,9 +109,7 @@ def main() -> None:
         anchor="w",
         bg="black",
         fg="white",
-    ).grid(
-        row=0, column=1, padx=5, pady=5
-    )
+    ).grid(row=0, column=1, padx=5, pady=5)
 
     Label(root, text="DPI:", bg="black", fg="white").grid(row=1, column=0, sticky="w")
     for i, d in enumerate([150, 300, 600]):
@@ -128,9 +122,7 @@ def main() -> None:
             fg="white",
             activebackground="gray20",
             activeforeground="white",
-        ).grid(
-            row=1, column=i + 1, sticky="w"
-        )
+        ).grid(row=1, column=i + 1, sticky="w")
 
     Label(root, text="Páginas:", bg="black", fg="white").grid(row=2, column=0, sticky="w")
     Entry(
@@ -151,12 +143,11 @@ def main() -> None:
         activebackground="gray20",
         activeforeground="white",
     )
-    run_btn.grid(
-        row=3, column=0, columnspan=2, pady=10
-    )
+    run_btn.grid(row=3, column=0, columnspan=2, pady=10)
 
     progress_bar = ttk.Progressbar(root, length=300)
     progress_bar.grid(row=4, column=0, columnspan=2, padx=5, pady=(0, 5))
+
     prog_lbl = Label(root, text="", bg="black", fg="white")
     prog_lbl.grid(row=5, column=0, columnspan=2, pady=(0, 5))
 
@@ -178,7 +169,6 @@ def main() -> None:
         root.after(100, update_progress)
 
     update_progress()
-
     root.mainloop()
 
 
