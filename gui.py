@@ -14,7 +14,15 @@ from tkinter import (
     messagebox,
 )
 
-from tqdm import tqdm_gui
+try:
+    from tqdm import tqdm_gui as progress_cls
+except ModuleNotFoundError:
+    from tqdm import tqdm as progress_cls
+else:  # ensure matplotlib is available for the GUI variant
+    try:  # pragma: no cover - simple import check
+        import matplotlib  # noqa: F401
+    except ModuleNotFoundError:  # pragma: no cover
+        from tqdm import tqdm as progress_cls
 
 from trey import rename_pdfs
 
@@ -34,10 +42,10 @@ def run_rename(input_path: str, dpi: int, pages: int, run_btn: Button | None = N
             dpi=dpi,
             pages=pages,
             jobs="auto",
-            progress_cls=tqdm_gui,
+            progress_cls=progress_cls,
         )
     except Exception as exc:  # pylint: disable=broad-except
-        messagebox.showerror("Error", f"Failed to rename PDFs: {exc}")
+        messagebox.showerror("Erro", f"Falha ao renomear PDFs: {exc}")
     finally:
         if run_btn is not None:
             run_btn.config(state="normal")
@@ -45,7 +53,7 @@ def run_rename(input_path: str, dpi: int, pages: int, run_btn: Button | None = N
 
 def main() -> None:
     root = Tk()
-    root.title("PDF Renamer")
+    root.title("Renomeador de PDF")
     root.configure(bg="black")
 
     input_var = StringVar()
@@ -54,7 +62,7 @@ def main() -> None:
 
     def select_zip() -> None:
         filename = filedialog.askopenfilename(
-            filetypes=[("ZIP files", "*.zip")]
+            filetypes=[("Arquivos ZIP", "*.zip")]
         )
         if filename:
             input_var.set(filename)
@@ -73,7 +81,7 @@ def main() -> None:
 
     Button(
         root,
-        text="Select ZIP",
+        text="Selecionar ZIP",
         command=select_zip,
         bg="black",
         fg="white",
@@ -108,7 +116,7 @@ def main() -> None:
             row=1, column=i + 1, sticky="w"
         )
 
-    Label(root, text="Pages:", bg="black", fg="white").grid(row=2, column=0, sticky="w")
+    Label(root, text="Páginas:", bg="black", fg="white").grid(row=2, column=0, sticky="w")
     Entry(
         root,
         textvariable=pages_var,
@@ -120,7 +128,7 @@ def main() -> None:
 
     run_btn = Button(
         root,
-        text="Run",
+        text="Executar",
         command=start,
         bg="black",
         fg="white",
@@ -136,4 +144,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
