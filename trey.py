@@ -27,7 +27,7 @@ Uso típico:
 import os, re, io, sys, csv, zipfile, shutil, argparse, multiprocessing as mp
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Tuple, List, Optional, Dict, Any
+from typing import Tuple, List, Optional, Dict, Any, Callable, Iterable, Union
 from tqdm import tqdm
 
 # ====== Config ======
@@ -77,6 +77,10 @@ def only_digits(s: str) -> str:
 def lines_from_roi(page, roi: ROI, dpi: int = 300) -> List[str]:
     import fitz, pytesseract
     from PIL import Image
+    if sys.platform.startswith("win"):
+        tesseract_cmd = Path(r"C:\\Program Files\\Tesseract-OCR\\tesseract.exe")
+        if tesseract_cmd.exists():
+            pytesseract.pytesseract.tesseract_cmd = str(tesseract_cmd)
     w, h = page.rect.width, page.rect.height
     rect = fitz.Rect(w*roi.x0, h*roi.y0, w*roi.x1, h*roi.y1)
     pm = page.get_pixmap(matrix=fitz.Matrix(dpi/72, dpi/72), alpha=False, clip=rect)
@@ -131,7 +135,7 @@ def find_code(pdf_path: Path, dpi: int = 300, pages: int = 2) -> Tuple[Optional[
     return None, "NÃO ENCONTRADO"
 
 def zip_dir(dir_path: Path, zip_out: Path) -> None:
-    with zipfile.ZipFile(str(zip_out), "w", compression=zipfile.ZIP_DEFLATED) as zf:
+    with zipfile.ZipFile(zip_out, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         for root, _, files in os.walk(dir_path):
             for f in files:
                 p = Path(root) / f
@@ -148,26 +152,12 @@ def worker(task):
     new_name = f"{(code if code else pdf.stem)}.PDF"
     return {"src": str(pdf), "original": pdf.name, "novo": new_name, "criterio": criterio, "codigo": code or ""}
 
-def parse_args(argv=None):
-    ap = argparse.ArgumentParser(description="Renomeia PDFs para 002025************** (20 dígitos) — robusto para variações.")
-    ap.add_argument("--input", required=True, help="Pasta com PDFs ou .zip")
-    ap.add_argument("--saida", required=True, help="ZIP de saída")
-    ap.add_argument("--dpi", type=int, default=300, help="DPI para OCR (padrão 300)")
-    ap.add_argument("--dpi-preset", choices=sorted(DPI_PRESETS.keys()), help="Preset de DPI (sobrepõe --dpi)")
-    ap.add_argument("--pages", type=int, default=2, help="Páginas a tentar (padrão 2)")
-    ap.add_argument("--jobs", default="auto", help="processos: 'auto' ou número")
-    return ap.parse_args(argv)
-
-
-def process(args):
-    if args.dpi_preset:
-        args.dpi = DPI_PRESETS[args.dpi_preset]
 
     # jobs
-    jobs = max(1, (os.cpu_count() or 1)) if args.jobs == "auto" else max(1, int(args.jobs))
+    n_jobs = max(1, (os.cpu_count() or 1)) if jobs == "auto" else max(1, int(jobs))
 
-    src = Path(args.input)
-    out_zip = Path(args.saida)
+    src = Path(input_path)
+    out_zip = Path(output_zip)
     work = Path.cwd() / "_ren_002025_tmp"
     if work.exists():
         shutil.rmtree(work, ignore_errors=True)
@@ -180,13 +170,11 @@ def process(args):
         with zipfile.ZipFile(str(src), "r") as zf:
             zf.extractall(src_dir)
     elif src.is_dir():
-        for p in src.rglob("*.pdf"):
-            shutil.copy2(p, src_dir / p.name)
-        for p in src.rglob("*.PDF"):
-            shutil.copy2(p, src_dir / p.name)
+        for p in src.rglob("*"):
+            if p.suffix.lower() == ".pdf":
+                shutil.copy2(p, src_dir / p.name)
     else:
-        print("Entrada inválida.")
-        sys.exit(2)
+        raise ValueError("Entrada inválida.")
 
     out_dir = work / "out"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -194,95 +182,68 @@ def process(args):
 
     pdfs = sorted([p for p in src_dir.rglob("*") if p.suffix.lower() == ".pdf"])
     if not pdfs:
-        print("Nenhum PDF encontrado.")
-        sys.exit(3)
+        raise ValueError("Nenhum PDF encontrado.")
 
-    tasks = [{"pdf": str(p), "dpi": int(args.dpi), "pages": int(args.pages)} for p in pdfs]
+    tasks = [{"pdf": str(p), "dpi": int(dpi), "pages": int(pages)} for p in pdfs]
 
     rows = []
-    with mp.Pool(processes=jobs) as pool:
-        for res in tqdm(pool.imap_unordered(worker, tasks, chunksize=2), total=len(tasks), desc=f"Processando ({jobs} proc.)", unit="pdf"):
+    with mp.Pool(processes=n_jobs) as pool:
+        for res in progress_cls(
+            pool.imap_unordered(worker, tasks, chunksize=2),
+            total=len(tasks),
+            desc=f"Processando ({n_jobs} proc.)",
+            unit="pdf",
+        ):
             rows.append(res)
-            shutil.copy2(res["src"], out_dir / res["novo"])
+            shutil.copy2(Path(res["src"]), out_dir / res["novo"])
 
     zip_dir(out_dir, out_zip)
     with open(mapa_csv, "w", newline="", encoding="utf-8-sig") as fh:
-        w = csv.DictWriter(fh, fieldnames=["original","novo_nome","criterio","codigo_detectado"])
+        w = csv.DictWriter(
+            fh,
+            fieldnames=["original", "novo_nome", "criterio", "codigo_detectado"],
+        )
         w.writeheader()
         for r in rows:
-            w.writerow({"original": r["original"], "novo_nome": r["novo"], "criterio": r["criterio"], "codigo_detectado": r["codigo"]})
+            w.writerow(
+                {
+                    "original": r["original"],
+                    "novo_nome": r["novo"],
+                    "criterio": r["criterio"],
+                    "codigo_detectado": r["codigo"],
+                }
+            )
+
+    return out_zip, mapa_csv
+
+
+def main():
+    ap = argparse.ArgumentParser(
+        description="Renomeia PDFs para 002025************** (20 dígitos) — robusto para variações."
+    )
+    ap.add_argument("--input", required=True, help="Pasta com PDFs ou .zip")
+    ap.add_argument("--saida", required=True, help="ZIP de saída")
+    ap.add_argument("--dpi", type=int, default=300, help="DPI para OCR (padrão 300)")
+    ap.add_argument("--pages", type=int, default=2, help="Páginas a tentar (padrão 2)")
+    ap.add_argument("--jobs", default="auto", help="processos: 'auto' ou número")
+    args = ap.parse_args()
+
+    try:
+        out_zip, mapa_csv = rename_pdfs(
+            args.input,
+            args.saida,
+            dpi=args.dpi,
+            pages=args.pages,
+            jobs=args.jobs,
+        )
+    except ValueError as e:
+        print(str(e))
+        sys.exit(2)
 
     print("OK")
     print(f"ZIP: {out_zip}")
     print(f"MAPA: {mapa_csv}")
 
-
-def main(argv=None):
-    args = parse_args(argv)
-    process(args)
-
-
-def run_gui():
-    import tkinter as tk
-    from tkinter import filedialog, messagebox
-
-    root = tk.Tk()
-    root.title("Renomear 002025 OCR")
-
-    input_var = tk.StringVar()
-    output_var = tk.StringVar()
-    pages_var = tk.IntVar(value=2)
-    jobs_var = tk.StringVar(value="auto")
-    dpi_preset_var = tk.StringVar(value="balanced")
-
-    def browse_input():
-        path = filedialog.askopenfilename(title="Entrada (pasta ou zip)")
-        if path:
-            input_var.set(path)
-
-    def browse_output():
-        path = filedialog.asksaveasfilename(title="ZIP de saída", defaultextension=".zip")
-        if path:
-            output_var.set(path)
-
-    def start():
-        if not input_var.get() or not output_var.get():
-            messagebox.showerror("Erro", "Informe entrada e saída")
-            return
-        args = argparse.Namespace(
-            input=input_var.get(),
-            saida=output_var.get(),
-            dpi=DPI_PRESETS[dpi_preset_var.get()],
-            dpi_preset=dpi_preset_var.get(),
-            pages=pages_var.get(),
-            jobs=jobs_var.get(),
-        )
-        try:
-            process(args)
-            messagebox.showinfo("Concluído", "Processamento finalizado.")
-        except Exception as e:
-            messagebox.showerror("Erro", str(e))
-
-    tk.Label(root, text="Entrada:").grid(row=0, column=0, sticky="e")
-    tk.Entry(root, textvariable=input_var, width=40).grid(row=0, column=1, padx=5, pady=5)
-    tk.Button(root, text="...", command=browse_input).grid(row=0, column=2, padx=5)
-
-    tk.Label(root, text="Saída ZIP:").grid(row=1, column=0, sticky="e")
-    tk.Entry(root, textvariable=output_var, width=40).grid(row=1, column=1, padx=5, pady=5)
-    tk.Button(root, text="...", command=browse_output).grid(row=1, column=2, padx=5)
-
-    tk.Label(root, text="Preset DPI:").grid(row=2, column=0, sticky="e")
-    tk.OptionMenu(root, dpi_preset_var, *DPI_PRESETS.keys()).grid(row=2, column=1, sticky="w", padx=5, pady=5)
-
-    tk.Label(root, text="Páginas:").grid(row=3, column=0, sticky="e")
-    tk.Entry(root, textvariable=pages_var, width=5).grid(row=3, column=1, sticky="w", padx=5, pady=5)
-
-    tk.Label(root, text="Jobs:").grid(row=4, column=0, sticky="e")
-    tk.Entry(root, textvariable=jobs_var, width=5).grid(row=4, column=1, sticky="w", padx=5, pady=5)
-
-    tk.Button(root, text="Iniciar", command=start).grid(row=5, column=0, columnspan=3, pady=10)
-
-    root.mainloop()
-
 if __name__ == "__main__":
+    mp.freeze_support()
     main()
