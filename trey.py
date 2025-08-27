@@ -27,7 +27,7 @@ Uso típico:
 import os, re, io, sys, csv, zipfile, shutil, argparse, multiprocessing as mp
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Tuple, List, Optional, Dict, Any
+from typing import Tuple, List, Optional, Dict, Any, Callable, Iterable, Union
 from tqdm import tqdm
 
 # ====== Config ======
@@ -145,21 +145,42 @@ def worker(task):
     new_name = f"{(code if code else pdf.stem)}.PDF"
     return {"src": str(pdf), "original": pdf.name, "novo": new_name, "criterio": criterio, "codigo": code or ""}
 
-def main():
-    import multiprocessing as mp
-    ap = argparse.ArgumentParser(description="Renomeia PDFs para 002025************** (20 dígitos) — robusto para variações.")
-    ap.add_argument("--input", required=True, help="Pasta com PDFs ou .zip")
-    ap.add_argument("--saida", required=True, help="ZIP de saída")
-    ap.add_argument("--dpi", type=int, default=300, help="DPI para OCR (padrão 300)")
-    ap.add_argument("--pages", type=int, default=2, help="Páginas a tentar (padrão 2)")
-    ap.add_argument("--jobs", default="auto", help="processos: 'auto' ou número")
-    args = ap.parse_args()
+def rename_pdfs(
+    input_path: str,
+    output_zip: str,
+    dpi: int = 300,
+    pages: int = 2,
+    jobs: Union[str, int] = "auto",
+    progress_cls: Callable[..., Iterable] = tqdm,
+):
+    """Core logic to rename PDFs and create a mapping CSV.
+
+    Parameters
+    ----------
+    input_path : str
+        Folder with PDFs or a .zip file.
+    output_zip : str
+        Destination zip file with renamed PDFs.
+    dpi : int, optional
+        DPI for OCR, by default 300.
+    pages : int, optional
+        Number of pages to scan from each PDF, by default 2.
+    jobs : str | int, optional
+        Number of parallel processes ("auto" for CPU count), by default "auto".
+    progress_cls : callable, optional
+        Progress bar class compatible with ``tqdm``, by default ``tqdm``.
+
+    Returns
+    -------
+    Tuple[Path, Path]
+        Paths to the output zip and mapping CSV files.
+    """
 
     # jobs
-    jobs = max(1, (os.cpu_count() or 1)) if args.jobs == "auto" else max(1, int(args.jobs))
+    n_jobs = max(1, (os.cpu_count() or 1)) if jobs == "auto" else max(1, int(jobs))
 
-    src = Path(args.input)
-    out_zip = Path(args.saida)
+    src = Path(input_path)
+    out_zip = Path(output_zip)
     work = Path.cwd() / "_ren_002025_tmp"
     if work.exists():
         shutil.rmtree(work, ignore_errors=True)
@@ -176,8 +197,7 @@ def main():
             if p.suffix.lower() == ".pdf":
                 shutil.copy2(p, src_dir / p.name)
     else:
-        print("Entrada inválida.")
-        sys.exit(2)
+        raise ValueError("Entrada inválida.")
 
     out_dir = work / "out"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -185,27 +205,68 @@ def main():
 
     pdfs = sorted([p for p in src_dir.rglob("*") if p.suffix.lower() == ".pdf"])
     if not pdfs:
-        print("Nenhum PDF encontrado.")
-        sys.exit(3)
+        raise ValueError("Nenhum PDF encontrado.")
 
-    tasks = [{"pdf": str(p), "dpi": int(args.dpi), "pages": int(args.pages)} for p in pdfs]
+    tasks = [{"pdf": str(p), "dpi": int(dpi), "pages": int(pages)} for p in pdfs]
 
     rows = []
-    with mp.Pool(processes=jobs) as pool:
-        for res in tqdm(pool.imap_unordered(worker, tasks, chunksize=2), total=len(tasks), desc=f"Processando ({jobs} proc.)", unit="pdf"):
+    with mp.Pool(processes=n_jobs) as pool:
+        for res in progress_cls(
+            pool.imap_unordered(worker, tasks, chunksize=2),
+            total=len(tasks),
+            desc=f"Processando ({n_jobs} proc.)",
+            unit="pdf",
+        ):
             rows.append(res)
             shutil.copy2(Path(res["src"]), out_dir / res["novo"])
 
     zip_dir(out_dir, out_zip)
     with open(mapa_csv, "w", newline="", encoding="utf-8-sig") as fh:
-        w = csv.DictWriter(fh, fieldnames=["original","novo_nome","criterio","codigo_detectado"])
+        w = csv.DictWriter(
+            fh,
+            fieldnames=["original", "novo_nome", "criterio", "codigo_detectado"],
+        )
         w.writeheader()
         for r in rows:
-            w.writerow({"original": r["original"], "novo_nome": r["novo"], "criterio": r["criterio"], "codigo_detectado": r["codigo"]})
+            w.writerow(
+                {
+                    "original": r["original"],
+                    "novo_nome": r["novo"],
+                    "criterio": r["criterio"],
+                    "codigo_detectado": r["codigo"],
+                }
+            )
+
+    return out_zip, mapa_csv
+
+
+def main():
+    ap = argparse.ArgumentParser(
+        description="Renomeia PDFs para 002025************** (20 dígitos) — robusto para variações."
+    )
+    ap.add_argument("--input", required=True, help="Pasta com PDFs ou .zip")
+    ap.add_argument("--saida", required=True, help="ZIP de saída")
+    ap.add_argument("--dpi", type=int, default=300, help="DPI para OCR (padrão 300)")
+    ap.add_argument("--pages", type=int, default=2, help="Páginas a tentar (padrão 2)")
+    ap.add_argument("--jobs", default="auto", help="processos: 'auto' ou número")
+    args = ap.parse_args()
+
+    try:
+        out_zip, mapa_csv = rename_pdfs(
+            args.input,
+            args.saida,
+            dpi=args.dpi,
+            pages=args.pages,
+            jobs=args.jobs,
+        )
+    except ValueError as e:
+        print(str(e))
+        sys.exit(2)
 
     print("OK")
     print(f"ZIP: {out_zip}")
     print(f"MAPA: {mapa_csv}")
+
 
 if __name__ == "__main__":
     mp.freeze_support()
