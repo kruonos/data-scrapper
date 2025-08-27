@@ -27,7 +27,7 @@ Uso típico:
 import os, re, io, sys, csv, zipfile, shutil, argparse, tempfile, multiprocessing as mp, logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Tuple, List, Optional, Dict, Any, Callable, Iterable, Union
+from typing import Tuple, List, Optional, Callable, Iterable, Union
 from tqdm import tqdm
 
 # ====== Config ======
@@ -62,7 +62,7 @@ DEFAULT_ROIS = [
 ]
 
 # predefinições de DPI para facilitar a escolha no CLI/GUI
-DPI_PRESETS: Dict[str, int] = {
+DPI_PRESETS: dict[str, int] = {
     "fast": 150,
     "balanced": 300,
     "quality": 600,
