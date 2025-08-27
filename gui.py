@@ -54,9 +54,7 @@ def run_rename(input_path: str, dpi: int, pages: int, run_btn: Button | None = N
 def main() -> None:
     root = Tk()
     root.title("Renomeador de PDF")
-    codex/update-gui-for-dark-mode
     root.configure(bg="black")
- main
 
     input_var = StringVar()
     dpi_var = IntVar(value=300)
@@ -80,8 +78,6 @@ def main() -> None:
             args=(input_var.get(), dpi_var.get(), pg, run_btn),
             daemon=True,
         ).start()
-
- codex/update-gui-for-dark-mode
     Button(
         root,
         text="Selecionar ZIP",
@@ -91,9 +87,6 @@ def main() -> None:
         activebackground="gray20",
         activeforeground="white",
     ).grid(
-
-    Button(root, text="Selecionar ZIP", command=select_zip).grid(
-main
         row=0, column=0, padx=5, pady=5, sticky="w"
     )
     Label(
@@ -122,7 +115,6 @@ main
             row=1, column=i + 1, sticky="w"
         )
 
- codex/update-gui-for-dark-mode
     Label(root, text="Páginas:", bg="black", fg="white").grid(row=2, column=0, sticky="w")
     Entry(
         root,
@@ -142,12 +134,6 @@ main
         activebackground="gray20",
         activeforeground="white",
     )
-
-    Label(root, text="Páginas:").grid(row=2, column=0, sticky="w")
-    Entry(root, textvariable=pages_var, width=5).grid(row=2, column=1, sticky="w")
-
-    run_btn = Button(root, text="Executar", command=start)
- main
     run_btn.grid(
         row=3, column=0, columnspan=2, pady=10
     )
