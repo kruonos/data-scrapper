@@ -70,6 +70,10 @@ def only_digits(s: str) -> str:
 def lines_from_roi(page, roi: ROI, dpi: int = 300) -> List[str]:
     import fitz, pytesseract
     from PIL import Image
+    if sys.platform.startswith("win"):
+        tesseract_cmd = Path(r"C:\\Program Files\\Tesseract-OCR\\tesseract.exe")
+        if tesseract_cmd.exists():
+            pytesseract.pytesseract.tesseract_cmd = str(tesseract_cmd)
     w, h = page.rect.width, page.rect.height
     rect = fitz.Rect(w*roi.x0, h*roi.y0, w*roi.x1, h*roi.y1)
     pm = page.get_pixmap(matrix=fitz.Matrix(dpi/72, dpi/72), alpha=False, clip=rect)
@@ -124,7 +128,7 @@ def find_code(pdf_path: Path, dpi: int = 300, pages: int = 2) -> Tuple[Optional[
     return None, "NÃO ENCONTRADO"
 
 def zip_dir(dir_path: Path, zip_out: Path) -> None:
-    with zipfile.ZipFile(str(zip_out), "w", compression=zipfile.ZIP_DEFLATED) as zf:
+    with zipfile.ZipFile(zip_out, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         for root, _, files in os.walk(dir_path):
             for f in files:
                 p = Path(root) / f
@@ -168,10 +172,9 @@ def main():
         with zipfile.ZipFile(str(src), "r") as zf:
             zf.extractall(src_dir)
     elif src.is_dir():
-        for p in src.rglob("*.pdf"):
-            shutil.copy2(p, src_dir / p.name)
-        for p in src.rglob("*.PDF"):
-            shutil.copy2(p, src_dir / p.name)
+        for p in src.rglob("*"):
+            if p.suffix.lower() == ".pdf":
+                shutil.copy2(p, src_dir / p.name)
     else:
         print("Entrada inválida.")
         sys.exit(2)
@@ -191,7 +194,7 @@ def main():
     with mp.Pool(processes=jobs) as pool:
         for res in tqdm(pool.imap_unordered(worker, tasks, chunksize=2), total=len(tasks), desc=f"Processando ({jobs} proc.)", unit="pdf"):
             rows.append(res)
-            shutil.copy2(res["src"], out_dir / res["novo"])
+            shutil.copy2(Path(res["src"]), out_dir / res["novo"])
 
     zip_dir(out_dir, out_zip)
     with open(mapa_csv, "w", newline="", encoding="utf-8-sig") as fh:
@@ -205,4 +208,5 @@ def main():
     print(f"MAPA: {mapa_csv}")
 
 if __name__ == "__main__":
+    mp.freeze_support()
     main()
