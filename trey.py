@@ -24,7 +24,7 @@ Uso típico:
     --jobs auto
 """
 
-import os, re, io, sys, csv, zipfile, shutil, argparse, multiprocessing as mp
+import os, re, io, sys, csv, zipfile, shutil, argparse, tempfile, multiprocessing as mp
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Tuple, List, Optional, Dict, Any, Callable, Iterable, Union
@@ -153,68 +153,75 @@ def worker(task):
     return {"src": str(pdf), "original": pdf.name, "novo": new_name, "criterio": criterio, "codigo": code or ""}
 
 
-    # jobs
+def rename_pdfs(
+    input_path: Union[str, Path],
+    output_zip: Union[str, Path],
+    *,
+    dpi: int = 300,
+    pages: int = 2,
+    jobs: Union[str, int] = "auto",
+    progress_cls: Callable[[Iterable], Iterable] = tqdm,
+) -> Tuple[Path, Path]:
     n_jobs = max(1, (os.cpu_count() or 1)) if jobs == "auto" else max(1, int(jobs))
 
     src = Path(input_path)
     out_zip = Path(output_zip)
-    work = Path.cwd() / "_ren_002025_tmp"
-    if work.exists():
-        shutil.rmtree(work, ignore_errors=True)
-    work.mkdir(parents=True, exist_ok=True)
 
-    # preparar fonte
-    src_dir = work / "src"
-    src_dir.mkdir(parents=True, exist_ok=True)
-    if src.is_file() and src.suffix.lower() == ".zip":
-        with zipfile.ZipFile(str(src), "r") as zf:
-            zf.extractall(src_dir)
-    elif src.is_dir():
-        for p in src.rglob("*"):
-            if p.suffix.lower() == ".pdf":
-                shutil.copy2(p, src_dir / p.name)
-    else:
-        raise ValueError("Entrada inválida.")
+    with tempfile.TemporaryDirectory() as workdir:
+        work = Path(workdir)
 
-    out_dir = work / "out"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    mapa_csv = out_zip.with_suffix(".csv")
+        # preparar fonte
+        src_dir = work / "src"
+        src_dir.mkdir(parents=True, exist_ok=True)
+        if src.is_file() and src.suffix.lower() == ".zip":
+            with zipfile.ZipFile(str(src), "r") as zf:
+                zf.extractall(src_dir)
+        elif src.is_dir():
+            for p in src.rglob("*"):
+                if p.suffix.lower() == ".pdf":
+                    shutil.copy2(p, src_dir / p.name)
+        else:
+            raise ValueError("Entrada inválida.")
 
-    pdfs = sorted([p for p in src_dir.rglob("*") if p.suffix.lower() == ".pdf"])
-    if not pdfs:
-        raise ValueError("Nenhum PDF encontrado.")
+        out_dir = work / "out"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        mapa_csv = out_zip.with_suffix(".csv")
 
-    tasks = [{"pdf": str(p), "dpi": int(dpi), "pages": int(pages)} for p in pdfs]
+        pdfs = sorted([p for p in src_dir.rglob("*") if p.suffix.lower() == ".pdf"])
+        if not pdfs:
+            raise ValueError("Nenhum PDF encontrado.")
 
-    rows = []
-    with mp.Pool(processes=n_jobs) as pool:
-        for res in progress_cls(
-            pool.imap_unordered(worker, tasks, chunksize=2),
-            total=len(tasks),
-            desc=f"Processando ({n_jobs} proc.)",
-            unit="pdf",
-        ):
-            rows.append(res)
-            shutil.copy2(Path(res["src"]), out_dir / res["novo"])
+        tasks = [{"pdf": str(p), "dpi": int(dpi), "pages": int(pages)} for p in pdfs]
 
-    zip_dir(out_dir, out_zip)
-    with open(mapa_csv, "w", newline="", encoding="utf-8-sig") as fh:
-        w = csv.DictWriter(
-            fh,
-            fieldnames=["original", "novo_nome", "criterio", "codigo_detectado"],
-        )
-        w.writeheader()
-        for r in rows:
-            w.writerow(
-                {
-                    "original": r["original"],
-                    "novo_nome": r["novo"],
-                    "criterio": r["criterio"],
-                    "codigo_detectado": r["codigo"],
-                }
+        rows = []
+        with mp.Pool(processes=n_jobs) as pool:
+            for res in progress_cls(
+                pool.imap_unordered(worker, tasks, chunksize=2),
+                total=len(tasks),
+                desc=f"Processando ({n_jobs} proc.)",
+                unit="pdf",
+            ):
+                rows.append(res)
+                shutil.copy2(Path(res["src"]), out_dir / res["novo"])
+
+        zip_dir(out_dir, out_zip)
+        with open(mapa_csv, "w", newline="", encoding="utf-8-sig") as fh:
+            w = csv.DictWriter(
+                fh,
+                fieldnames=["original", "novo_nome", "criterio", "codigo_detectado"],
             )
+            w.writeheader()
+            for r in rows:
+                w.writerow(
+                    {
+                        "original": r["original"],
+                        "novo_nome": r["novo"],
+                        "criterio": r["criterio"],
+                        "codigo_detectado": r["codigo"],
+                    }
+                )
 
-    return out_zip, mapa_csv
+        return out_zip, mapa_csv
 
 
 def main():
