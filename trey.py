@@ -24,7 +24,7 @@ Uso típico:
     --jobs auto
 """
 
-import os, re, io, sys, csv, zipfile, shutil, argparse, tempfile, multiprocessing as mp
+import os, re, io, sys, csv, zipfile, shutil, argparse, tempfile, multiprocessing as mp, logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Tuple, List, Optional, Dict, Any, Callable, Iterable, Union
@@ -139,7 +139,7 @@ def zip_dir(dir_path: Path, zip_out: Path) -> None:
         for root, _, files in os.walk(dir_path):
             for f in files:
                 p = Path(root) / f
-                zf.write(p, arcname=p.name)
+                zf.write(p, arcname=p.relative_to(dir_path))
 
 def worker(task):
     pdf = Path(task["pdf"])
@@ -179,7 +179,13 @@ def rename_pdfs(
         elif src.is_dir():
             for p in src.rglob("*"):
                 if p.suffix.lower() == ".pdf":
-                    shutil.copy2(p, src_dir / p.name)
+                    rel = p.relative_to(src)
+                    dest = src_dir / rel
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    if dest.exists():
+                        logging.warning("PDF duplicado ignorado: %s", dest)
+                        continue
+                    shutil.copy2(p, dest)
         else:
             raise ValueError("Entrada inválida.")
 
@@ -202,7 +208,13 @@ def rename_pdfs(
                 unit="pdf",
             ):
                 rows.append(res)
-                shutil.copy2(Path(res["src"]), out_dir / res["novo"])
+                rel_parent = Path(res["src"]).relative_to(src_dir).parent
+                dest = out_dir / rel_parent / res["novo"]
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                if dest.exists():
+                    logging.warning("Nome duplicado na saída, pulando: %s", dest)
+                    continue
+                shutil.copy2(Path(res["src"]), dest)
 
         zip_dir(out_dir, out_zip)
         with open(mapa_csv, "w", newline="", encoding="utf-8-sig") as fh:
