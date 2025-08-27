@@ -37,7 +37,7 @@ def run_rename(input_path: str, dpi: int, pages: int, run_btn: Button | None = N
             progress_cls=tqdm_gui,
         )
     except Exception as exc:  # pylint: disable=broad-except
-        messagebox.showerror("Error", f"Failed to rename PDFs: {exc}")
+        messagebox.showerror("Erro", f"Falha ao renomear PDFs: {exc}")
     finally:
         if run_btn is not None:
             run_btn.config(state="normal")
@@ -45,7 +45,7 @@ def run_rename(input_path: str, dpi: int, pages: int, run_btn: Button | None = N
 
 def main() -> None:
     root = Tk()
-    root.title("PDF Renamer")
+    root.title("Renomeador de PDF")
 
     input_var = StringVar()
     dpi_var = IntVar(value=300)
@@ -53,7 +53,7 @@ def main() -> None:
 
     def select_zip() -> None:
         filename = filedialog.askopenfilename(
-            filetypes=[("ZIP files", "*.zip")]
+            filetypes=[("Arquivos ZIP", "*.zip")]
         )
         if filename:
             input_var.set(filename)
@@ -70,7 +70,7 @@ def main() -> None:
             daemon=True,
         ).start()
 
-    Button(root, text="Select ZIP", command=select_zip).grid(
+    Button(root, text="Selecionar ZIP", command=select_zip).grid(
         row=0, column=0, padx=5, pady=5, sticky="w"
     )
     Label(root, textvariable=input_var, width=40, anchor="w").grid(
@@ -83,10 +83,10 @@ def main() -> None:
             row=1, column=i + 1, sticky="w"
         )
 
-    Label(root, text="Pages:").grid(row=2, column=0, sticky="w")
+    Label(root, text="Páginas:").grid(row=2, column=0, sticky="w")
     Entry(root, textvariable=pages_var, width=5).grid(row=2, column=1, sticky="w")
 
-    run_btn = Button(root, text="Run", command=start)
+    run_btn = Button(root, text="Executar", command=start)
     run_btn.grid(
         row=3, column=0, columnspan=2, pady=10
     )
