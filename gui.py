@@ -41,7 +41,7 @@ def run_rename(input_path: str, dpi: int, pages: int, run_btn: Button | None = N
             out_zip,
             dpi=dpi,
             pages=pages,
-            jobs="auto",
+            jobs=1,
             progress_cls=progress_cls,
         )
     except Exception as exc:  # pylint: disable=broad-except

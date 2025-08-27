@@ -159,7 +159,7 @@ def rename_pdfs(
     *,
     dpi: int = 300,
     pages: int = 2,
-    jobs: Union[str, int] = "auto",
+    jobs: Union[str, int] = 1,
     progress_cls: Callable[[Iterable], Iterable] = tqdm,
 ) -> Tuple[Path, Path]:
     n_jobs = max(1, (os.cpu_count() or 1)) if jobs == "auto" else max(1, int(jobs))
@@ -200,21 +200,35 @@ def rename_pdfs(
         tasks = [{"pdf": str(p), "dpi": int(dpi), "pages": int(pages)} for p in pdfs]
 
         rows = []
-        with mp.Pool(processes=n_jobs) as pool:
+
+        def handle_result(res):
+            rows.append(res)
+            rel_parent = Path(res["src"]).relative_to(src_dir).parent
+            dest = out_dir / rel_parent / res["novo"]
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            if dest.exists():
+                logging.warning("Nome duplicado na saída, pulando: %s", dest)
+                return
+            shutil.copy2(Path(res["src"]), dest)
+
+        if n_jobs == 1:
+            iterator = map(worker, tasks)
             for res in progress_cls(
-                pool.imap_unordered(worker, tasks, chunksize=2),
+                iterator,
                 total=len(tasks),
-                desc=f"Processando ({n_jobs} proc.)",
+                desc="Processando (1 proc.)",
                 unit="pdf",
             ):
-                rows.append(res)
-                rel_parent = Path(res["src"]).relative_to(src_dir).parent
-                dest = out_dir / rel_parent / res["novo"]
-                dest.parent.mkdir(parents=True, exist_ok=True)
-                if dest.exists():
-                    logging.warning("Nome duplicado na saída, pulando: %s", dest)
-                    continue
-                shutil.copy2(Path(res["src"]), dest)
+                handle_result(res)
+        else:
+            with mp.Pool(processes=n_jobs) as pool:
+                for res in progress_cls(
+                    pool.imap_unordered(worker, tasks, chunksize=2),
+                    total=len(tasks),
+                    desc=f"Processando ({n_jobs} proc.)",
+                    unit="pdf",
+                ):
+                    handle_result(res)
 
         zip_dir(out_dir, out_zip)
         with open(mapa_csv, "w", newline="", encoding="utf-8-sig") as fh:
@@ -244,7 +258,7 @@ def main():
     ap.add_argument("--saida", required=True, help="ZIP de saída")
     ap.add_argument("--dpi", type=int, default=300, help="DPI para OCR (padrão 300)")
     ap.add_argument("--pages", type=int, default=2, help="Páginas a tentar (padrão 2)")
-    ap.add_argument("--jobs", default="auto", help="processos: 'auto' ou número")
+    ap.add_argument("--jobs", default=1, help="processos: 'auto' ou número")
     args = ap.parse_args()
 
     try:
