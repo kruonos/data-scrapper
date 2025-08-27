@@ -2,3 +2,4 @@ pytesseract
 Pillow
 PyMuPDF
 tqdm
+matplotlib>=3.0
