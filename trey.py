@@ -24,7 +24,7 @@ Uso típico:
     --jobs auto
 """
 
-import os, re, io, sys, csv, zipfile, shutil, argparse, tempfile, multiprocessing as mp, logging
+import os, re, io, sys, csv, zipfile, shutil, argparse, tempfile, multiprocessing as mp, logging, time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Tuple, List, Optional, Callable, Iterable, Union
@@ -201,12 +201,17 @@ def rename_pdfs(
 
         rows = []
         with mp.Pool(processes=n_jobs) as pool:
+            last_time = time.perf_counter()
             for res in progress_cls(
                 pool.imap_unordered(worker, tasks, chunksize=2),
                 total=len(tasks),
                 desc=f"Processando ({n_jobs} proc.)",
                 unit="pdf",
+                bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]",
             ):
+                now = time.perf_counter()
+                logging.debug("Concluído %s em %.2fs", res["src"], now - last_time)
+                last_time = now
                 rows.append(res)
                 rel_parent = Path(res["src"]).relative_to(src_dir).parent
                 dest = out_dir / rel_parent / res["novo"]
