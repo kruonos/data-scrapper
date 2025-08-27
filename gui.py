@@ -14,7 +14,15 @@ from tkinter import (
     messagebox,
 )
 
-from tqdm import tqdm_gui
+try:
+    from tqdm import tqdm_gui as progress_cls
+except ModuleNotFoundError:
+    from tqdm import tqdm as progress_cls
+else:  # ensure matplotlib is available for the GUI variant
+    try:  # pragma: no cover - simple import check
+        import matplotlib  # noqa: F401
+    except ModuleNotFoundError:  # pragma: no cover
+        from tqdm import tqdm as progress_cls
 
 from trey import rename_pdfs
 
@@ -34,7 +42,7 @@ def run_rename(input_path: str, dpi: int, pages: int, run_btn: Button | None = N
             dpi=dpi,
             pages=pages,
             jobs="auto",
-            progress_cls=tqdm_gui,
+            progress_cls=progress_cls,
         )
     except Exception as exc:  # pylint: disable=broad-except
         messagebox.showerror("Error", f"Failed to rename PDFs: {exc}")
