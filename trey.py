@@ -84,9 +84,9 @@ def lines_from_roi(page, roi: ROI, dpi: int = 300) -> List[str]:
     w, h = page.rect.width, page.rect.height
     rect = fitz.Rect(w*roi.x0, h*roi.y0, w*roi.x1, h*roi.y1)
     pm = page.get_pixmap(matrix=fitz.Matrix(dpi/72, dpi/72), alpha=False, clip=rect)
-    img = Image.open(io.BytesIO(pm.tobytes("png")))
-    cfg = "--psm 6 -c tessedit_char_whitelist=0123456789OIlSBZgGQD"
-    txt = pytesseract.image_to_string(img, lang="eng", config=cfg) or ""
+    with Image.open(io.BytesIO(pm.tobytes("png"))) as img:
+        cfg = "--psm 6 -c tessedit_char_whitelist=0123456789OIlSBZgGQD"
+        txt = pytesseract.image_to_string(img, lang="eng", config=cfg) or ""
     return [ln.strip() for ln in txt.splitlines() if ln.strip()]
 
 def try_extract_code_from_lines(lines: List[str]) -> Optional[str]:
