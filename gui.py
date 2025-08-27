@@ -46,6 +46,7 @@ def run_rename(input_path: str, dpi: int, pages: int, run_btn: Button | None = N
 def main() -> None:
     root = Tk()
     root.title("PDF Renamer")
+    root.configure(bg="black")
 
     input_var = StringVar()
     dpi_var = IntVar(value=300)
@@ -70,23 +71,62 @@ def main() -> None:
             daemon=True,
         ).start()
 
-    Button(root, text="Select ZIP", command=select_zip).grid(
+    Button(
+        root,
+        text="Select ZIP",
+        command=select_zip,
+        bg="black",
+        fg="white",
+        activebackground="gray20",
+        activeforeground="white",
+    ).grid(
         row=0, column=0, padx=5, pady=5, sticky="w"
     )
-    Label(root, textvariable=input_var, width=40, anchor="w").grid(
+    Label(
+        root,
+        textvariable=input_var,
+        width=40,
+        anchor="w",
+        bg="black",
+        fg="white",
+    ).grid(
         row=0, column=1, padx=5, pady=5
     )
 
-    Label(root, text="DPI:").grid(row=1, column=0, sticky="w")
+    Label(root, text="DPI:", bg="black", fg="white").grid(row=1, column=0, sticky="w")
     for i, d in enumerate([150, 300, 600]):
-        Radiobutton(root, text=str(d), variable=dpi_var, value=d).grid(
+        Radiobutton(
+            root,
+            text=str(d),
+            variable=dpi_var,
+            value=d,
+            bg="black",
+            fg="white",
+            activebackground="gray20",
+            activeforeground="white",
+        ).grid(
             row=1, column=i + 1, sticky="w"
         )
 
-    Label(root, text="Pages:").grid(row=2, column=0, sticky="w")
-    Entry(root, textvariable=pages_var, width=5).grid(row=2, column=1, sticky="w")
+    Label(root, text="Pages:", bg="black", fg="white").grid(row=2, column=0, sticky="w")
+    Entry(
+        root,
+        textvariable=pages_var,
+        width=5,
+        bg="black",
+        fg="white",
+        insertbackground="white",
+    ).grid(row=2, column=1, sticky="w")
 
-    run_btn = Button(root, text="Run", command=start)
+    run_btn = Button(
+        root,
+        text="Run",
+        command=start,
+        bg="black",
+        fg="white",
+        activebackground="gray20",
+        activeforeground="white",
+    )
     run_btn.grid(
         row=3, column=0, columnspan=2, pady=10
     )
