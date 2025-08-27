@@ -24,7 +24,7 @@ Uso típico:
     --jobs auto
 """
 
-import os, re, io, sys, csv, zipfile, shutil, argparse, tempfile, multiprocessing as mp, logging
+import os, re, io, sys, csv, zipfile, shutil, argparse, tempfile, multiprocessing as mp, logging, time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Tuple, List, Optional, Callable, Iterable, Union
@@ -152,7 +152,6 @@ def worker(task):
     new_name = f"{(code if code else pdf.stem)}.PDF"
     return {"src": str(pdf), "original": pdf.name, "novo": new_name, "criterio": criterio, "codigo": code or ""}
 
-
 def rename_pdfs(
     input_path: Union[str, Path],
     output_zip: Union[str, Path],
@@ -218,6 +217,7 @@ def rename_pdfs(
                 total=len(tasks),
                 desc="Processando (1 proc.)",
                 unit="pdf",
+                bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]",
             ):
                 handle_result(res)
         else:
@@ -248,7 +248,6 @@ def rename_pdfs(
                 )
 
         return out_zip, mapa_csv
-
 
 def main():
     ap = argparse.ArgumentParser(
