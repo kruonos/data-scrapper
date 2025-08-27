@@ -61,6 +61,13 @@ DEFAULT_ROIS = [
     ROI(0.50, 0.00, 1.00, 0.32),  # direita
 ]
 
+# predefinições de DPI para facilitar a escolha no CLI/GUI
+DPI_PRESETS: Dict[str, int] = {
+    "fast": 150,
+    "balanced": 300,
+    "quality": 600,
+}
+
 def normalize_ocr(s: str) -> str:
     return s.translate(NORM_TABLE)
 
@@ -145,36 +152,6 @@ def worker(task):
     new_name = f"{(code if code else pdf.stem)}.PDF"
     return {"src": str(pdf), "original": pdf.name, "novo": new_name, "criterio": criterio, "codigo": code or ""}
 
-def rename_pdfs(
-    input_path: str,
-    output_zip: str,
-    dpi: int = 300,
-    pages: int = 2,
-    jobs: Union[str, int] = "auto",
-    progress_cls: Callable[..., Iterable] = tqdm,
-):
-    """Core logic to rename PDFs and create a mapping CSV.
-
-    Parameters
-    ----------
-    input_path : str
-        Folder with PDFs or a .zip file.
-    output_zip : str
-        Destination zip file with renamed PDFs.
-    dpi : int, optional
-        DPI for OCR, by default 300.
-    pages : int, optional
-        Number of pages to scan from each PDF, by default 2.
-    jobs : str | int, optional
-        Number of parallel processes ("auto" for CPU count), by default "auto".
-    progress_cls : callable, optional
-        Progress bar class compatible with ``tqdm``, by default ``tqdm``.
-
-    Returns
-    -------
-    Tuple[Path, Path]
-        Paths to the output zip and mapping CSV files.
-    """
 
     # jobs
     n_jobs = max(1, (os.cpu_count() or 1)) if jobs == "auto" else max(1, int(jobs))
@@ -266,7 +243,6 @@ def main():
     print("OK")
     print(f"ZIP: {out_zip}")
     print(f"MAPA: {mapa_csv}")
-
 
 if __name__ == "__main__":
     mp.freeze_support()
