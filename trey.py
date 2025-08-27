@@ -61,6 +61,13 @@ DEFAULT_ROIS = [
     ROI(0.50, 0.00, 1.00, 0.32),  # direita
 ]
 
+# predefinições de DPI para facilitar a escolha no CLI/GUI
+DPI_PRESETS: Dict[str, int] = {
+    "fast": 150,
+    "balanced": 300,
+    "quality": 600,
+}
+
 def normalize_ocr(s: str) -> str:
     return s.translate(NORM_TABLE)
 
@@ -141,15 +148,20 @@ def worker(task):
     new_name = f"{(code if code else pdf.stem)}.PDF"
     return {"src": str(pdf), "original": pdf.name, "novo": new_name, "criterio": criterio, "codigo": code or ""}
 
-def main():
-    import multiprocessing as mp
+def parse_args(argv=None):
     ap = argparse.ArgumentParser(description="Renomeia PDFs para 002025************** (20 dígitos) — robusto para variações.")
     ap.add_argument("--input", required=True, help="Pasta com PDFs ou .zip")
     ap.add_argument("--saida", required=True, help="ZIP de saída")
     ap.add_argument("--dpi", type=int, default=300, help="DPI para OCR (padrão 300)")
+    ap.add_argument("--dpi-preset", choices=sorted(DPI_PRESETS.keys()), help="Preset de DPI (sobrepõe --dpi)")
     ap.add_argument("--pages", type=int, default=2, help="Páginas a tentar (padrão 2)")
     ap.add_argument("--jobs", default="auto", help="processos: 'auto' ou número")
-    args = ap.parse_args()
+    return ap.parse_args(argv)
+
+
+def process(args):
+    if args.dpi_preset:
+        args.dpi = DPI_PRESETS[args.dpi_preset]
 
     # jobs
     jobs = max(1, (os.cpu_count() or 1)) if args.jobs == "auto" else max(1, int(args.jobs))
@@ -203,6 +215,74 @@ def main():
     print("OK")
     print(f"ZIP: {out_zip}")
     print(f"MAPA: {mapa_csv}")
+
+
+def main(argv=None):
+    args = parse_args(argv)
+    process(args)
+
+
+def run_gui():
+    import tkinter as tk
+    from tkinter import filedialog, messagebox
+
+    root = tk.Tk()
+    root.title("Renomear 002025 OCR")
+
+    input_var = tk.StringVar()
+    output_var = tk.StringVar()
+    pages_var = tk.IntVar(value=2)
+    jobs_var = tk.StringVar(value="auto")
+    dpi_preset_var = tk.StringVar(value="balanced")
+
+    def browse_input():
+        path = filedialog.askopenfilename(title="Entrada (pasta ou zip)")
+        if path:
+            input_var.set(path)
+
+    def browse_output():
+        path = filedialog.asksaveasfilename(title="ZIP de saída", defaultextension=".zip")
+        if path:
+            output_var.set(path)
+
+    def start():
+        if not input_var.get() or not output_var.get():
+            messagebox.showerror("Erro", "Informe entrada e saída")
+            return
+        args = argparse.Namespace(
+            input=input_var.get(),
+            saida=output_var.get(),
+            dpi=DPI_PRESETS[dpi_preset_var.get()],
+            dpi_preset=dpi_preset_var.get(),
+            pages=pages_var.get(),
+            jobs=jobs_var.get(),
+        )
+        try:
+            process(args)
+            messagebox.showinfo("Concluído", "Processamento finalizado.")
+        except Exception as e:
+            messagebox.showerror("Erro", str(e))
+
+    tk.Label(root, text="Entrada:").grid(row=0, column=0, sticky="e")
+    tk.Entry(root, textvariable=input_var, width=40).grid(row=0, column=1, padx=5, pady=5)
+    tk.Button(root, text="...", command=browse_input).grid(row=0, column=2, padx=5)
+
+    tk.Label(root, text="Saída ZIP:").grid(row=1, column=0, sticky="e")
+    tk.Entry(root, textvariable=output_var, width=40).grid(row=1, column=1, padx=5, pady=5)
+    tk.Button(root, text="...", command=browse_output).grid(row=1, column=2, padx=5)
+
+    tk.Label(root, text="Preset DPI:").grid(row=2, column=0, sticky="e")
+    tk.OptionMenu(root, dpi_preset_var, *DPI_PRESETS.keys()).grid(row=2, column=1, sticky="w", padx=5, pady=5)
+
+    tk.Label(root, text="Páginas:").grid(row=3, column=0, sticky="e")
+    tk.Entry(root, textvariable=pages_var, width=5).grid(row=3, column=1, sticky="w", padx=5, pady=5)
+
+    tk.Label(root, text="Jobs:").grid(row=4, column=0, sticky="e")
+    tk.Entry(root, textvariable=jobs_var, width=5).grid(row=4, column=1, sticky="w", padx=5, pady=5)
+
+    tk.Button(root, text="Iniciar", command=start).grid(row=5, column=0, columnspan=3, pady=10)
+
+    root.mainloop()
 
 if __name__ == "__main__":
     main()
