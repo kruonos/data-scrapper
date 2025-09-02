@@ -1,4 +1,4 @@
-#importações para o script funcionar
+# importações para o script funcionar
 import os, re, time, requests
 import customtkinter as ctk
 from tkinter import filedialog
@@ -382,122 +382,146 @@ def main():
 
     app.mainloop()
 
-    # =========================
-    # 2º APP: Entrada de códigos e progresso de download
-    # =========================
-    app = ctk.CTk()
-    app.title("PRINTPOST A.R AUTOMATIZADO")
-    app.geometry("500x350")
-    store_codes = ctk.CTkLabel(app, text='insira os codigos a serem consultados, limite de 200 por vez')
-    store_codes.pack(pady=10)
+    # -------------------------
+    # Função: 2º APP (entrada de códigos) + processamento
+    # -------------------------
+    def run_codes_flow():
+        # 2º APP
+        app2 = ctk.CTk()
+        app2.title("PRINTPOST A.R AUTOMATIZADO")
+        app2.geometry("500x350")
+        store_codes = ctk.CTkLabel(app2, text='insira os codigos a serem consultados, limite de 200 por vez')
+        store_codes.pack(pady=10)
 
-    Codes_entry = ctk.CTkTextbox(app, width=400, height=150)
-    Codes_entry.pack()
+        Codes_entry = ctk.CTkTextbox(app2, width=400, height=150)
+        Codes_entry.pack()
 
-    def select_file():
-        path = filedialog.askopenfilename(filetypes=[("Text files", "*.txt")])
-        if path:
-            codes = load_codes_from_file(path)
-            Codes_entry.delete("0.0", ctk.END)
-            Codes_entry.insert("0.0", "\n".join(codes))
+        def select_file():
+            path = filedialog.askopenfilename(filetypes=[("Text files", "*.txt")])
+            if path:
+                codes = load_codes_from_file(path)
+                Codes_entry.delete("0.0", ctk.END)
+                Codes_entry.insert("0.0", "\n".join(codes))
 
-    select_button = ctk.CTkButton(app, text="Selecionar arquivo", command=select_file)
-    select_button.pack(pady=5)
+        select_button = ctk.CTkButton(app2, text="Selecionar arquivo", command=select_file)
+        select_button.pack(pady=5)
 
-    progress = ctk.CTkProgressBar(app, width=400)
+        progress = ctk.CTkProgressBar(app2, width=400)
 
-    CODES_LIST = []
-    RESULT_OK, RESULT_SKIP = [], []
+        CODES_LIST = []
+        RESULT_OK, RESULT_SKIP = [], []
 
-    def start_process():
-        nonlocal CODES_LIST, RESULT_OK, RESULT_SKIP
-        CODES_LIST = [c for c in re.findall(r"\S+", Codes_entry.get("0.0", ctk.END))]
-        total = len(CODES_LIST)
-        if not total:
-            return
-        Codes_entry.configure(state="disabled")
-        select_button.configure(state="disabled")
-        Codes_button.configure(state="disabled")
-        progress.pack(pady=10)
-        progress.set(0)
-        app.update_idletasks()
+        def start_process():
+            nonlocal CODES_LIST, RESULT_OK, RESULT_SKIP
+            CODES_LIST = [c for c in re.findall(r"\S+", Codes_entry.get("0.0", ctk.END))]
+            total = len(CODES_LIST)
+            if not total:
+                return
+            Codes_entry.configure(state="disabled")
+            select_button.configure(state="disabled")
+            Codes_button.configure(state="disabled")
+            progress.pack(pady=10)
+            progress.set(0)
+            app2.update_idletasks()
 
-        counter = {"v": 0}
+            counter = {"v": 0}
 
-        def update_progress():
-            counter["v"] += 1
-            progress.set(counter["v"] / total)
-            app.update_idletasks()
+            def update_progress():
+                counter["v"] += 1
+                progress.set(counter["v"] / total)
+                app2.update_idletasks()
 
-        RESULT_OK, RESULT_SKIP = consultar_codigos(CODES_LIST, progress_callback=update_progress)
-        app.after(500, app.destroy)
+            RESULT_OK, RESULT_SKIP = consultar_codigos(CODES_LIST, progress_callback=update_progress)
+            app2.after(500, app2.destroy)
 
-    Codes_button = ctk.CTkButton(app, text="Iniciar", command=start_process)
-    Codes_button.pack(pady=10)
+        Codes_button = ctk.CTkButton(app2, text="Iniciar", command=start_process)
+        Codes_button.pack(pady=10)
 
-    app.mainloop()
+        app2.mainloop()
+        return RESULT_OK, RESULT_SKIP
 
-    # ========= Execução =========
+    # ========= Loop para permitir consultar mais códigos sem fechar =========
     try:
-        print("ARs baixados")
-        for b in RESULT_OK:
-            tag_fb = "(fallback)" if b.get("fallback") else ""
-            print(f"[{b['pos']:03}] {b.get('codigo','?')} -> {b['arquivos']}{tag_fb}")
-        print("Itens pulados")
-        for p in RESULT_SKIP:
-            print(f"[{p['pos']:03}] {p.get('codigo','?')} -> {p['motivo']}")
+        while True:
+            RESULT_OK, RESULT_SKIP = run_codes_flow()
 
-        app = ctk.CTk()
-        app.title("PRINTPOST A.R AUTOMATIZADO")
-        app.geometry("400x300")
-        finish = ctk.CTkLabel(app, text='Processo concluido, verifique a pasta de downloads,\nlocalizada em C:/Users/seu_usuario/SGD-BAIXADOS')
-        finish.pack(pady=10)
-        sucess = ctk.CTkLabel(app, text='')
-        sucess.pack(pady=10)
-        delete = ctk.CTkLabel(app, text='')
-        delete.pack(pady=10)
+            # Log simples no console
+            print("ARs baixados")
+            for b in RESULT_OK:
+                tag_fb = "(fallback)" if b.get("fallback") else ""
+                print(f"[{b['pos']:03}] {b.get('codigo','?')} -> {b['arquivos']}{tag_fb}")
+            print("Itens pulados")
+            for p in RESULT_SKIP:
+                print(f"[{p['pos']:03}] {p.get('codigo','?')} -> {p['motivo']}")
 
-        def delete_png():
-            try:
-                count = 0
-                for f in os.listdir(DOWNLOAD_DIR):
-                    if f.lower().endswith(".png"):
-                        os.remove(os.path.join(DOWNLOAD_DIR, f))
-                        count += 1
-                print(f"{count} arquivos PNG removidos.")
-                delete.configure(text='arquivos deleteados')
-            except Exception as e:
-                print(f"Erro ao deletar PNGs: {e}")
+            # 3º APP: opções finais (converter/deletar/voltar a consultar)
+            app3 = ctk.CTk()
+            app3.title("PRINTPOST A.R AUTOMATIZADO")
+            app3.geometry("420x340")
+            finish = ctk.CTkLabel(app3, text='Processo concluido, verifique a pasta de downloads,\nlocalizada em C:/Users/seu_usuario/SGD-BAIXADOS')
+            finish.pack(pady=10)
+            sucess = ctk.CTkLabel(app3, text='')
+            sucess.pack(pady=6)
+            delete = ctk.CTkLabel(app3, text='')
+            delete.pack(pady=6)
 
-        def pdf_convert():
-            try:
-                allimages = [
-                    os.path.join(DOWNLOAD_DIR, f)
-                    for f in os.listdir(DOWNLOAD_DIR)
-                    if f.lower().endswith(('.png', '.jpg', '.jpeg'))
-                ]
-                if not allimages:
-                    print("Nenhuma imagem encontrada.")
-                    return
-                for img in allimages:
-                    with Image.open(img) as image:
-                        if image.mode in ("RGBA", "P", "CMYK"):
-                            image = image.convert("RGB")
-                        pdf_path = img.rsplit('.', 1)[0] + '.pdf'
-                        image.save(pdf_path, "PDF", resolution=100.0)
-                    print(f"OK {img} -> {pdf_path}")
-                    sucess.configure(text='arquivos convertidos para PDF \n na mesma pasta de download')
-            except Exception as e:
-                print(f"Erro durante a conversao: {e}")
+            def delete_png():
+                try:
+                    count = 0
+                    for f in os.listdir(DOWNLOAD_DIR):
+                        if f.lower().endswith(".png"):
+                            os.remove(os.path.join(DOWNLOAD_DIR, f))
+                            count += 1
+                    print(f"{count} arquivos PNG removidos.")
+                    delete.configure(text='arquivos deleteados')
+                except Exception as e:
+                    print(f"Erro ao deletar PNGs: {e}")
 
-        pdf_entry = ctk.CTkButton(app, text="converter para pdf", command=pdf_convert)
-        pdf_entry.pack(pady=10)
-        button_quit = ctk.CTkButton(app, text="Fechar", command=app.destroy)
-        button_quit.pack(pady=10)
-        delete_button = ctk.CTkButton(app, text="deletar arquivos PNG", command=delete_png)
-        delete_button.pack(pady=10)
+            def pdf_convert():
+                try:
+                    allimages = [
+                        os.path.join(DOWNLOAD_DIR, f)
+                        for f in os.listdir(DOWNLOAD_DIR)
+                        if f.lower().endswith(('.png', '.jpg', '.jpeg'))
+                    ]
+                    if not allimages:
+                        print("Nenhuma imagem encontrada.")
+                        return
+                    for img in allimages:
+                        with Image.open(img) as image:
+                            if image.mode in ("RGBA", "P", "CMYK"):
+                                image = image.convert("RGB")
+                            pdf_path = img.rsplit('.', 1)[0] + '.pdf'
+                            image.save(pdf_path, "PDF", resolution=100.0)
+                        print(f"OK {img} -> {pdf_path}")
+                        sucess.configure(text='arquivos convertidos para PDF \n na mesma pasta de download')
+                except Exception as e:
+                    print(f"Erro durante a conversao: {e}")
 
-        app.mainloop()
+            # Novo: voltar para o 2º APP (consultar mais códigos)
+            want_again = {"value": False}
+            def voltar_para_consulta():
+                want_again["value"] = True
+                app3.destroy()
+
+            pdf_entry      = ctk.CTkButton(app3, text="Converter para PDF", command=pdf_convert)
+            delete_button  = ctk.CTkButton(app3, text="Deletar arquivos PNG", command=delete_png)
+            again_button   = ctk.CTkButton(app3, text="Consultar mais códigos", command=voltar_para_consulta)
+            close_button   = ctk.CTkButton(app3, text="Fechar", command=app3.destroy)
+
+            pdf_entry.pack(pady=8)
+            delete_button.pack(pady=8)
+            again_button.pack(pady=12)
+            close_button.pack(pady=8)
+
+            app3.mainloop()
+
+            # Se o usuário clicou em "Consultar mais códigos", repete o loop.
+            if want_again["value"]:
+                continue
+            # Caso contrário, sai do loop e encerra.
+            break
+
     except Exception as e:
         print(f"[ERRO] Falha ao baixar ARs: {e}")
     finally:
