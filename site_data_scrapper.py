@@ -1,7 +1,10 @@
 #importações para o script funcionar
 import os, re, time, requests
+codex/optimize-code-for-low-end-computers-7jrh1m
 import customtkinter as ctk
 from tkinter import filedialog
+import customtkinter as ctk
+main
 ctk.set_appearance_mode("System")  # Modes: "System" (standard), "Dark", light
 from pathlib import Path
 from selenium import webdriver
@@ -106,6 +109,7 @@ def _infer_ext_from_content_type(ct: str) -> str:
     if "jpeg" in ct or "jpg" in ct: return ".jpg"
     if "png" in ct: return ".png"
     if "gif" in ct: return ".gif"
+codex/optimize-code-for-low-end-computers-7jrh1m
     if "pdf" in ct: return ".pdf"
     return ".bin"
 
@@ -113,6 +117,10 @@ def load_codes_from_file(path: str) -> list[str]:
     """Read tracking codes from a text file."""
     with open(path, "r", encoding="utf-8") as f:
         return [line.strip() for line in f if line.strip()]
+      
+    if "pdf" in ct: return ".pdf"
+    return ".bin"
+main
 
 def _download_img_with_cookies(driver, url: str, out_base: str, referer: str, session):
     s = _requests_with_selenium_cookies(driver, referer=referer, session=session)
@@ -202,6 +210,7 @@ butão_define.pack(pady=10)
 # Loop do 1º app
 app.mainloop()
 
+codex/optimize-code-for-low-end-computers-7jrh1m
 # =========================
 # 2º APP: Entrada de códigos e progresso de download
 # =========================
@@ -258,11 +267,83 @@ app.mainloop()
 
 def baixar_ars_da_tela(expected: int = 0, progress_callback=None):
     """Download AR images currently listed on the page."""
+=======
+# =========================
+# 2º APP: Entrada de códigos e acionar pesquisa
+# =========================
+app=ctk.CTk()
+app.title("PRINTPOST A.R AUTOMATIZADO")
+app.geometry("500x300")
+#entrada de dados
+store_codes = ctk.CTkLabel(app, text='insira os codigos a serem consultados, limite de 200 por vez')
+store_codes.pack(pady=10)
+
+Codes_entry = ctk.CTkTextbox(app, width=400, height=150)
+Codes_entry.pack()
+
+# Variável global para armazenar os códigos digitados
+CODES_SAVE = ""
+
+def consulting_sgds():
+    # Coleta do conteúdo e fechamento do app p/ continuar o fluxo
+    global CODES_SAVE
+    CODES_SAVE = Codes_entry.get("0.0", ctk.END).strip()
+    app.after(100, app.destroy)
+
+Codes_button = ctk.CTkButton(app, text="Salvar Codigos", command=consulting_sgds)
+Codes_button.pack(pady=10)
+
+# Loop do 2º app (só prossegue quando o usuário clicar em "Salvar Codigos")
+app.mainloop()
+
+# =========================
+# Fluxo após obter os códigos: Navegação e Pesquisa
+# =========================
+
+# Abre menu e vai para Consulta Objetos
+try:
+    wait.until(EC.element_to_be_clickable((By.ID, "nav-menu"))).click()
+except TimeoutException:
+    # Se o menu já estiver aberto, segue
+    pass
+
+try:
+    wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "expandir"))).click()
+except TimeoutException:
+    pass
+
+wait.until(EC.element_to_be_clickable((By.LINK_TEXT, "Consulta Objetos"))).click()
+
+try:
+    wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "opcoes"))).click()
+except TimeoutException:
+    pass
+
+# Ativa "Consultar Vários"
+try:
+    chk = wait.until(EC.element_to_be_clickable((By.ID, "chkConsultarVariosObjetos")))
+    chk.click()
+except TimeoutException:
+    pass
+
+# Campo de códigos
+campo_codigos = wait.until(EC.presence_of_element_located((By.ID, "txtAreaObjetos")))
+campo_codigos.clear()
+if CODES_SAVE:
+    campo_codigos.send_keys(CODES_SAVE)
+
+# Pesquisar
+wait.until(EC.element_to_be_clickable((By.PARTIAL_LINK_TEXT, "Pesquisar"))).click()
+
+# ========= Baixar ARs (HEADLESS; sem Ctrl+S) =========
+def baixar_ars_da_tela():
+main
     baixados, pulados = [], []
     session = _requests_with_selenium_cookies(driver)
     try:
         wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "a.verArDigital")))
     except TimeoutException:
+codex/optimize-code-for-low-end-computers-7jrh1m
         if progress_callback:
             for _ in range(expected):
                 progress_callback()
@@ -270,6 +351,12 @@ def baixar_ars_da_tela(expected: int = 0, progress_callback=None):
 
     anchors = driver.find_elements(By.CSS_SELECTOR, "a.verArDigital")
     for idx, a in enumerate(anchors, start=1):
+
+        return baixados, [{"pos":"-", "motivo":"nenhum link verArDigital encontrado"}]
+
+    anchors = driver.find_elements(By.CSS_SELECTOR, "a.verArDigital")
+    for idx, a in enumerate(anchors, start=1):
+main
         style = (a.get_attribute("style") or "").replace(" ", "").lower()
         onclick = a.get_attribute("onclick") or ""
 
@@ -329,6 +416,7 @@ def baixar_ars_da_tela(expected: int = 0, progress_callback=None):
         out_base = f"{codigo}"
         out_path, err = _download_img_with_cookies(driver, img_url, out_base, referer, session)
 
+codex/optimize-code-for-low-end-computers-7jrh1m
         if out_path and not err:
             baixados.append({"pos": idx, "codigo": codigo, "arquivos": [os.path.basename(out_path)]})
         else:
@@ -404,6 +492,36 @@ def consultar_codigos(codes: list[str], progress_callback=None):
 
 # ========= App final: Converter para PDF e deletar PNG =========
 # quando acionado apaga os arquivos PNG da pasta de download
+
+        if out_path and not err:
+            baixados.append({"pos": idx, "codigo": codigo, "arquivos": [os.path.basename(out_path)]})
+        else:
+            # Fallback: screenshot do elemento <img>
+            try:
+                if img:
+                    shot_path = _screenshot_element(img, out_base)
+                else:
+                    # Se não temos o elemento img, faz screenshot da página toda
+                    shot_path = os.path.join(DOWNLOAD_DIR, _sanitize_name(out_base + "_page.png"))
+                    driver.save_screenshot(shot_path)
+                baixados.append({"pos": idx, "codigo": codigo, "arquivos": [os.path.basename(shot_path)], "fallback": True, "motivo": err})
+            except Exception as e:
+                pulados.append({"pos": idx, "codigo": codigo, "motivo": f"falha_download_e_fallback: {err or ''}; {e}"})
+
+        # Fecha aba nova (se houve) e volta
+        if main_handle:
+            try: driver.close()
+            except: pass
+            driver.switch_to.window(main_handle)
+            time.sleep(0.1)
+
+    return baixados, pulados
+# ========= App final: Converter para PDF e deletar PNG =========
+# quando acionado fecha o app em 2 segundos
+def destroy():
+    app.after(2000, app.destroy)
+    # quando acionado apaga os arquivos PNG da pasta de download
+ main
 def delete_png():
     try:
         count = 0
