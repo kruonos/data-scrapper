@@ -256,8 +256,25 @@ Codes_button = ctk.CTkButton(app, text="Iniciar", command=start_process)
 Codes_button.pack(pady=10)
 
 app.mainloop()
-# ========= Baixar ARs (HEADLESS; sem Ctrl+S) =========
+
+
 def baixar_ars_da_tela(expected=0, progress_callback=None):
+    """Download AR images visible on the current page.
+
+    Parameters
+    ----------
+    expected: int, optional
+        Quantidade total de ARs esperados; usado para atualizar o progresso
+        caso menos itens sejam encontrados.
+    progress_callback: callable, optional
+        Função chamada após processar cada item.
+
+    Returns
+    -------
+    tuple[list[dict], list[dict]]
+        Listas de itens baixados e pulados.
+    """
+
     baixados, pulados = [], []
     session = _requests_with_selenium_cookies(driver)
     try:
@@ -267,6 +284,7 @@ def baixar_ars_da_tela(expected=0, progress_callback=None):
             for _ in range(expected):
                 progress_callback()
         return baixados, [{"pos": "-", "motivo": "nenhum link verArDigital encontrado"}]
+
     anchors = driver.find_elements(By.CSS_SELECTOR, "a.verArDigital")
     for idx, a in enumerate(anchors, start=1):
         style = (a.get_attribute("style") or "").replace(" ", "").lower()
@@ -313,11 +331,19 @@ def baixar_ars_da_tela(expected=0, progress_callback=None):
             if "verArDigital.php" in current_url:
                 img = None
             else:
-                pulados.append({"pos": idx, "codigo": codigo, "motivo": "img verArDigital.php não encontrada"})
+                pulados.append(
+                    {
+                        "pos": idx,
+                        "codigo": codigo,
+                        "motivo": "img verArDigital.php não encontrada",
+                    }
+                )
                 # fecha aba se for nova
                 if main_handle:
-                    try: driver.close()
-                    except: pass
+                    try:
+                        driver.close()
+                    except:
+                        pass
                     driver.switch_to.window(main_handle)
                 continue
 
@@ -336,16 +362,35 @@ def baixar_ars_da_tela(expected=0, progress_callback=None):
                 if img:
                     shot_path = _screenshot_element(img, out_base)
                 else:
-                    shot_path = os.path.join(DOWNLOAD_DIR, _sanitize_name(out_base + "_page.png"))
+                    shot_path = os.path.join(
+                        DOWNLOAD_DIR,
+                        _sanitize_name(out_base + "_page.png"),
+                    )
                     driver.save_screenshot(shot_path)
-                baixados.append({"pos": idx, "codigo": codigo, "arquivos": [os.path.basename(shot_path)], "fallback": True, "motivo": err})
+                baixados.append(
+                    {
+                        "pos": idx,
+                        "codigo": codigo,
+                        "arquivos": [os.path.basename(shot_path)],
+                        "fallback": True,
+                        "motivo": err,
+                    }
+                )
             except Exception as e:
-                pulados.append({"pos": idx, "codigo": codigo, "motivo": f"falha_download_e_fallback: {err or ''}; {e}"})
+                pulados.append(
+                    {
+                        "pos": idx,
+                        "codigo": codigo,
+                        "motivo": f"falha_download_e_fallback: {err or ''}; {e}",
+                    }
+                )
 
         # Fecha aba nova (se houve) e volta
         if main_handle:
-            try: driver.close()
-            except: pass
+            try:
+                driver.close()
+            except:
+                pass
             driver.switch_to.window(main_handle)
             time.sleep(0.1)
 
