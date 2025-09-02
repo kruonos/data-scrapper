@@ -177,8 +177,8 @@ def baixar_ars_da_tela(expected=0, progress_callback=None):
                 if parent_handle:
                     try:
                         driver.close()
-                    except:
-                        pass
+                    except Exception as e:
+                        print(f"[WARN] Falha ao fechar aba após erro no código {codigo}: {e}")
                     driver.switch_to.window(parent_handle)
                 continue
 
@@ -224,8 +224,8 @@ def baixar_ars_da_tela(expected=0, progress_callback=None):
         if parent_handle:
             try:
                 driver.close()
-            except:
-                pass
+            except Exception as e:
+                print(f"[WARN] Não foi possível fechar aba para código {codigo}: {e}")
             driver.switch_to.window(parent_handle)
             time.sleep(0.1)
 
@@ -248,26 +248,26 @@ def consultar_codigos(codes: list[str], progress_callback=None):
     # Abre menu e vai para Consulta Objetos
     try:
         wait.until(EC.element_to_be_clickable((By.ID, "nav-menu"))).click()
-    except TimeoutException:
-        pass
+    except TimeoutException as e:
+        print(f"[WARN] Falha ao clicar no menu principal (nav-menu): {e}")
 
     try:
         wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "expandir"))).click()
-    except TimeoutException:
-        pass
+    except TimeoutException as e:
+        print(f"[WARN] Falha ao expandir o menu: {e}")
 
     wait.until(EC.element_to_be_clickable((By.LINK_TEXT, "Consulta Objetos"))).click()
 
     try:
         wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "opcoes"))).click()
-    except TimeoutException:
-        pass
+    except TimeoutException as e:
+        print(f"[WARN] Falha ao abrir opções de consulta: {e}")
 
     try:
         chk = wait.until(EC.element_to_be_clickable((By.ID, "chkConsultarVariosObjetos")))
         chk.click()
-    except TimeoutException:
-        pass
+    except TimeoutException as e:
+        print(f"[WARN] Falha ao marcar 'Consultar vários objetos': {e}")
 
     all_ok, all_skip = [], []
     for batch in chunk(codes, 200):
@@ -293,8 +293,8 @@ def main():
         if p.exists():
             try:
                 p.unlink()
-            except:
-                pass
+            except Exception as e:
+                print(f"[WARN] Não foi possível remover {p}: {e}")
 
     options = webdriver.ChromeOptions()
     options.add_argument(fr"--user-data-dir={PROFILE_DIR}")
@@ -337,8 +337,8 @@ def main():
 
     try:
         WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.CLASS_NAME, "entrar"))).click()
-    except TimeoutException:
-        pass  # pode já estar no quadro de login
+    except TimeoutException as e:
+        print(f"[WARN] Botão 'entrar' não disponível (pode já estar no quadro de login): {e}")
 
     # =========================
     # 1º APP: Captura de usuário/senha e login
