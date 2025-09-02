@@ -256,47 +256,8 @@ Codes_button = ctk.CTkButton(app, text="Iniciar", command=start_process)
 Codes_button.pack(pady=10)
 
 app.mainloop()
-# =========================
-# Fluxo após obter os códigos: Navegação e Pesquisa
-# =========================
-
-# Abre menu e vai para Consulta Objetos
-try:
-    wait.until(EC.element_to_be_clickable((By.ID, "nav-menu"))).click()
-except TimeoutException:
-    # Se o menu já estiver aberto, segue
-    pass
-
-try:
-    wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "expandir"))).click()
-except TimeoutException:
-    pass
-
-wait.until(EC.element_to_be_clickable((By.LINK_TEXT, "Consulta Objetos"))).click()
-
-try:
-    wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "opcoes"))).click()
-except TimeoutException:
-    pass
-
-# Ativa "Consultar Vários"
-try:
-    chk = wait.until(EC.element_to_be_clickable((By.ID, "chkConsultarVariosObjetos")))
-    chk.click()
-except TimeoutException:
-    pass
-
-# Campo de códigos
-campo_codigos = wait.until(EC.presence_of_element_located((By.ID, "txtAreaObjetos")))
-campo_codigos.clear()
-if CODES_SAVE:
-    campo_codigos.send_keys(CODES_SAVE)
-
-# Pesquisar
-wait.until(EC.element_to_be_clickable((By.PARTIAL_LINK_TEXT, "Pesquisar"))).click()
-
 # ========= Baixar ARs (HEADLESS; sem Ctrl+S) =========
-def baixar_ars_da_tela():
+def baixar_ars_da_tela(expected=0, progress_callback=None):
     baixados, pulados = [], []
     session = _requests_with_selenium_cookies(driver)
     try:
