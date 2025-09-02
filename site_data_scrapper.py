@@ -1,6 +1,10 @@
 #importações para o script funcionar
 import os, re, time, requests
+codex/optimize-code-for-low-end-computers-7jrh1m
 import customtkinter as ctk
+from tkinter import filedialog
+import customtkinter as ctk
+main
 ctk.set_appearance_mode("System")  # Modes: "System" (standard), "Dark", light
 from pathlib import Path
 from selenium import webdriver
@@ -105,8 +109,18 @@ def _infer_ext_from_content_type(ct: str) -> str:
     if "jpeg" in ct or "jpg" in ct: return ".jpg"
     if "png" in ct: return ".png"
     if "gif" in ct: return ".gif"
+codex/optimize-code-for-low-end-computers-7jrh1m
     if "pdf" in ct: return ".pdf"
     return ".bin"
+
+def load_codes_from_file(path: str) -> list[str]:
+    """Read tracking codes from a text file."""
+    with open(path, "r", encoding="utf-8") as f:
+        return [line.strip() for line in f if line.strip()]
+      
+    if "pdf" in ct: return ".pdf"
+    return ".bin"
+main
 
 def _download_img_with_cookies(driver, url: str, out_base: str, referer: str, session):
     s = _requests_with_selenium_cookies(driver, referer=referer, session=session)
@@ -196,6 +210,64 @@ butão_define.pack(pady=10)
 # Loop do 1º app
 app.mainloop()
 
+codex/optimize-code-for-low-end-computers-7jrh1m
+# =========================
+# 2º APP: Entrada de códigos e progresso de download
+# =========================
+app=ctk.CTk()
+app.title("PRINTPOST A.R AUTOMATIZADO")
+app.geometry("500x350")
+store_codes = ctk.CTkLabel(app, text='insira os codigos a serem consultados, limite de 200 por vez')
+store_codes.pack(pady=10)
+
+Codes_entry = ctk.CTkTextbox(app, width=400, height=150)
+Codes_entry.pack()
+
+def select_file():
+    path = filedialog.askopenfilename(filetypes=[("Text files", "*.txt")])
+    if path:
+        codes = load_codes_from_file(path)
+        Codes_entry.delete("0.0", ctk.END)
+        Codes_entry.insert("0.0", "\n".join(codes))
+
+select_button = ctk.CTkButton(app, text="Selecionar arquivo", command=select_file)
+select_button.pack(pady=5)
+
+progress = ctk.CTkProgressBar(app, width=400)
+
+CODES_LIST = []
+RESULT_OK, RESULT_SKIP = [], []
+
+def start_process():
+    global CODES_LIST, RESULT_OK, RESULT_SKIP
+    CODES_LIST = [c for c in re.findall(r"\S+", Codes_entry.get("0.0", ctk.END))]
+    total = len(CODES_LIST)
+    if not total:
+        return
+    Codes_entry.configure(state="disabled")
+    select_button.configure(state="disabled")
+    Codes_button.configure(state="disabled")
+    progress.pack(pady=10)
+    progress.set(0)
+    app.update_idletasks()
+
+    counter = {"v": 0}
+    def update_progress():
+        counter["v"] += 1
+        progress.set(counter["v"] / total)
+        app.update_idletasks()
+
+    RESULT_OK, RESULT_SKIP = consultar_codigos(CODES_LIST, progress_callback=update_progress)
+    app.after(500, app.destroy)
+
+Codes_button = ctk.CTkButton(app, text="Iniciar", command=start_process)
+Codes_button.pack(pady=10)
+
+app.mainloop()
+
+def baixar_ars_da_tela(expected: int = 0, progress_callback=None):
+    """Download AR images currently listed on the page."""
+=======
 # =========================
 # 2º APP: Entrada de códigos e acionar pesquisa
 # =========================
@@ -265,15 +337,26 @@ wait.until(EC.element_to_be_clickable((By.PARTIAL_LINK_TEXT, "Pesquisar"))).clic
 
 # ========= Baixar ARs (HEADLESS; sem Ctrl+S) =========
 def baixar_ars_da_tela():
+main
     baixados, pulados = [], []
     session = _requests_with_selenium_cookies(driver)
     try:
         wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "a.verArDigital")))
     except TimeoutException:
+codex/optimize-code-for-low-end-computers-7jrh1m
+        if progress_callback:
+            for _ in range(expected):
+                progress_callback()
+        return baixados, [{"pos": "-", "motivo": "nenhum link verArDigital encontrado"}]
+
+    anchors = driver.find_elements(By.CSS_SELECTOR, "a.verArDigital")
+    for idx, a in enumerate(anchors, start=1):
+
         return baixados, [{"pos":"-", "motivo":"nenhum link verArDigital encontrado"}]
 
     anchors = driver.find_elements(By.CSS_SELECTOR, "a.verArDigital")
     for idx, a in enumerate(anchors, start=1):
+main
         style = (a.get_attribute("style") or "").replace(" ", "").lower()
         onclick = a.get_attribute("onclick") or ""
 
@@ -333,6 +416,83 @@ def baixar_ars_da_tela():
         out_base = f"{codigo}"
         out_path, err = _download_img_with_cookies(driver, img_url, out_base, referer, session)
 
+codex/optimize-code-for-low-end-computers-7jrh1m
+        if out_path and not err:
+            baixados.append({"pos": idx, "codigo": codigo, "arquivos": [os.path.basename(out_path)]})
+        else:
+            # Fallback: screenshot do elemento <img>
+            try:
+                if img:
+                    shot_path = _screenshot_element(img, out_base)
+                else:
+                    shot_path = os.path.join(DOWNLOAD_DIR, _sanitize_name(out_base + "_page.png"))
+                    driver.save_screenshot(shot_path)
+                baixados.append({"pos": idx, "codigo": codigo, "arquivos": [os.path.basename(shot_path)], "fallback": True, "motivo": err})
+            except Exception as e:
+                pulados.append({"pos": idx, "codigo": codigo, "motivo": f"falha_download_e_fallback: {err or ''}; {e}"})
+
+        # Fecha aba nova (se houve) e volta
+        if main_handle:
+            try: driver.close()
+            except: pass
+            driver.switch_to.window(main_handle)
+            time.sleep(0.1)
+
+        if progress_callback:
+            progress_callback()
+
+    if progress_callback and expected > len(anchors):
+        for _ in range(expected - len(anchors)):
+            progress_callback()
+
+    return baixados, pulados
+
+
+def consultar_codigos(codes: list[str], progress_callback=None):
+    """Consulta códigos em lotes de até 200."""
+    def chunk(lst, size):
+        for i in range(0, len(lst), size):
+            yield lst[i:i + size]
+
+    # Abre menu e vai para Consulta Objetos
+    try:
+        wait.until(EC.element_to_be_clickable((By.ID, "nav-menu"))).click()
+    except TimeoutException:
+        pass
+
+    try:
+        wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "expandir"))).click()
+    except TimeoutException:
+        pass
+
+    wait.until(EC.element_to_be_clickable((By.LINK_TEXT, "Consulta Objetos"))).click()
+
+    try:
+        wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "opcoes"))).click()
+    except TimeoutException:
+        pass
+
+    try:
+        chk = wait.until(EC.element_to_be_clickable((By.ID, "chkConsultarVariosObjetos")))
+        chk.click()
+    except TimeoutException:
+        pass
+
+    all_ok, all_skip = [], []
+    for batch in chunk(codes, 200):
+        campo = wait.until(EC.presence_of_element_located((By.ID, "txtAreaObjetos")))
+        campo.clear()
+        campo.send_keys("\n".join(batch))
+        wait.until(EC.element_to_be_clickable((By.PARTIAL_LINK_TEXT, "Pesquisar"))).click()
+        b_ok, b_skip = baixar_ars_da_tela(expected=len(batch), progress_callback=progress_callback)
+        all_ok.extend(b_ok)
+        all_skip.extend(b_skip)
+
+    return all_ok, all_skip
+
+# ========= App final: Converter para PDF e deletar PNG =========
+# quando acionado apaga os arquivos PNG da pasta de download
+
         if out_path and not err:
             baixados.append({"pos": idx, "codigo": codigo, "arquivos": [os.path.basename(out_path)]})
         else:
@@ -361,6 +521,7 @@ def baixar_ars_da_tela():
 def destroy():
     app.after(2000, app.destroy)
     # quando acionado apaga os arquivos PNG da pasta de download
+ main
 def delete_png():
     try:
         count = 0
@@ -401,18 +562,18 @@ def pdf_convert():
 
 # ========= Execução =========
 try:
-    b_ok, b_skip = baixar_ars_da_tela()
-
     print("ARs baixados")
-    for b in b_ok:
+    for b in RESULT_OK:
         tag_fb = "(fallback)" if b.get("fallback") else ""
         print(f"[{b['pos']:03}] {b.get('codigo','?')} -> {b['arquivos']}{tag_fb}")
-    print(" Itens pulados")
-    #ultima interface grafica, com botões para converter e deletar, e mensagem de conclusão
-    app=ctk.CTk()
+    print("Itens pulados")
+    for p in RESULT_SKIP:
+        print(f"[{p['pos']:03}] {p.get('codigo','?')} -> {p['motivo']}")
+
+    app = ctk.CTk()
     app.title("PRINTPOST A.R AUTOMATIZADO")
     app.geometry("400x300")
-    finish = ctk.CTkLabel(app, text='Processo concluido, verifique a pasta de downloads,\n''localizada em C:/Users/seu_usuario/SGD-BAIXADOS')
+    finish = ctk.CTkLabel(app, text='Processo concluido, verifique a pasta de downloads,\nlocalizada em C:/Users/seu_usuario/SGD-BAIXADOS')
     finish.pack(pady=10)
     pdf_entry = ctk.CTkButton(app, text="converter para pdf", command=pdf_convert)
     pdf_entry.pack(pady=10)
@@ -425,12 +586,8 @@ try:
     delete = ctk.CTkLabel(app, text=f'')
     delete.pack(pady=10)
     app.mainloop()
-    # relatório final no console
-    for p in b_skip:
-        print(f"[{p['pos']:03}] {p.get('codigo','?')} -> {p['motivo']}")
 except Exception as e:
     print(f"[ERRO] Falha ao baixar ARs: {e}")
-#fim do script
 finally:
     time.sleep(1)
     driver.quit()
