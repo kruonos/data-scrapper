@@ -13,8 +13,6 @@ from PIL import Image
 from selenium.common.exceptions import TimeoutException, ElementClickInterceptedException, SessionNotCreatedException
 from webdriver_manager.chrome import ChromeDriverManager
 
-ctk.set_appearance_mode("System")  # Modes: "System" (standard), "Dark", light
-
 # ========= Configuração inicial =========
 HOME = Path.home()
 DOWNLOAD_DIR = str(HOME / "SGD-BAIXADOS")
@@ -23,52 +21,8 @@ TARGET       = "https://sgd.correios.com.br/sgd/app/"
 MIN_BYTES_OK = 1024   # arquivos <1KB costumam ser bloqueio/HTML de login
 WINDOW_SIZE  = os.environ.get("CHROME_WINDOW_SIZE", "1280,720")
 
-# ========= Pastas, se não existirem o script cria com os.makedirs =========
-os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-os.makedirs(PROFILE_DIR, exist_ok=True)
-
-# Limpa travas de perfil se sobrou algo do último crash
-for f in ["SingletonLock", "SingletonCookie", "SingletonSocket", "SingletonSemaphore"]:
-    p = Path(PROFILE_DIR, f)
-    if p.exists():
-        try: p.unlink()
-        except: pass
-
-# ========= Chrome Options (HEADLESS) roda em segundo plano, sem atrapalhar o usuario =========
-options = webdriver.ChromeOptions()
-options.add_argument(fr"--user-data-dir={PROFILE_DIR}")
-options.add_argument("--no-first-run")
-options.add_argument("--no-default-browser-check")
-options.add_argument("--disable-backgrounding-occluded-windows")
-options.add_argument("--disable-features=Translate,MediaRouter,PasswordLeakDetection,AutomationControlled")
-options.add_argument("--headless=new")           # <<< HEADLESS
-options.add_argument("--disable-gpu")
-options.add_argument(f"--window-size={WINDOW_SIZE}")
-options.add_argument("--disable-dev-shm-usage")
-options.add_argument("--no-sandbox")
-
-# Preferências (não dependemos do gerenciador de download)
-options.add_experimental_option("prefs", {
-    
-    "credentials_enable_service": False,       # disable password manager
-    "profile.password_manager_enabled": False, # legacy toggle
-    "autofill.profile_enabled": False,
-    "autofill.credit_card_enabled": False,
-    "download.default_directory": DOWNLOAD_DIR,
-    "download.prompt_for_download": False,
-    "download.directory_upgrade": True,
-    "safebrowsing.enabled": True,
-})
-
-# ========= Driver (Chrome) =========
-service = Service(ChromeDriverManager().install())
-try:
-    driver = webdriver.Chrome(service=service, options=options)
-except SessionNotCreatedException:
-    print("[ERRO] Falha ao iniciar o Chrome.")
-    raise
-
-wait = WebDriverWait(driver, 25)
+driver = None
+wait = None
 
 # ========= Helpers para garantir que o site seja acessado =========
 def _requests_with_selenium_cookies(driver, referer=None, session=None):
@@ -138,125 +92,6 @@ def _screenshot_element(locator, out_base: str):
     out = os.path.join(DOWNLOAD_DIR, _sanitize_name(out_base + ".png"))
     locator.screenshot(out)
     return out
-
-# ========= Navegação inicial =========
-driver.get(TARGET)
-try:
-    WebDriverWait(driver, 12).until(EC.url_contains("https://sgd.correios.com.br/sgd/app/"))
-except TimeoutException:
-    driver.execute_script("window.location.href = arguments[0];", TARGET)
-    WebDriverWait(driver, 12).until(EC.url_contains("https://sgd.correios.com.br/sgd/app/"))
-
-# Tenta abrir o formulário de login (caso haja botão "entrar")
-try:
-    WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.CLASS_NAME, "entrar"))).click()
-except TimeoutException:
-    pass  # pode já estar no quadro de login
-
-# =========================
-# 1º APP: Captura de usuário/senha e login
-# =========================
-app=ctk.CTk()
-app.title("PRINTPOST A.R AUTOMATIZADO")
-app.geometry("500x300")
-
-# Rótulos e entradas
-#entrada de usuario e senha
-definer_label = ctk.CTkLabel(app, text='ensira os codigos abaixo')
-definer_label.pack(pady=10)
-user = ctk.CTkEntry(app, placeholder_text="Usuario SGD")
-user.pack()
-pass_label = ctk.CTkLabel(app, text='ensira a senha' )
-pass_label.pack()
-password = ctk.CTkEntry(app, placeholder_text="Senha SGD", show="*")
-password.pack()
-
-# Indicador de clique/estado
-Butão_check = ctk.CTkLabel(app, text='')
-Butão_check.pack()
-# Ação de login
-def entrar_sgd():
-    try:
-        SGD_USUARIO = user.get()
-        SGD_SENHA = password.get()
-
-        # Preenche e envia o formulário
-        u = wait.until(EC.presence_of_element_located((By.ID, "username")))
-        u.clear(); u.send_keys(SGD_USUARIO)
-        pwd = wait.until(EC.presence_of_element_located((By.ID, "password")))
-        pwd.clear(); pwd.send_keys(SGD_SENHA)
-        pwd.send_keys(Keys.RETURN)
-
-        # Aguarda pós-login
-        wait.until(EC.presence_of_element_located((By.ID, "nav-menu")))
-        Butão_check.configure(text="Login efetuado.")
-    except Exception as e:
-        # Se já estava logado ou layout diferente, tenta seguir mesmo assim.
-        Butão_check.configure(text=f"Tentando prosseguir... ({e})")
-    finally:
-        app.after(2000, app.destroy)
-
-# Botão de login
-butão_define = ctk.CTkButton(app, text="Login", command=entrar_sgd)
-butão_define.pack(pady=10)
-
-# Loop do 1º app
-app.mainloop()
-
-# =========================
-# 2º APP: Entrada de códigos e progresso de download
-# =========================
-app=ctk.CTk()
-app.title("PRINTPOST A.R AUTOMATIZADO")
-app.geometry("500x350")
-store_codes = ctk.CTkLabel(app, text='insira os codigos a serem consultados, limite de 200 por vez')
-store_codes.pack(pady=10)
-
-Codes_entry = ctk.CTkTextbox(app, width=400, height=150)
-Codes_entry.pack()
-
-def select_file():
-    path = filedialog.askopenfilename(filetypes=[("Text files", "*.txt")])
-    if path:
-        codes = load_codes_from_file(path)
-        Codes_entry.delete("0.0", ctk.END)
-        Codes_entry.insert("0.0", "\n".join(codes))
-
-select_button = ctk.CTkButton(app, text="Selecionar arquivo", command=select_file)
-select_button.pack(pady=5)
-
-progress = ctk.CTkProgressBar(app, width=400)
-
-CODES_LIST = []
-RESULT_OK, RESULT_SKIP = [], []
-
-def start_process():
-    global CODES_LIST, RESULT_OK, RESULT_SKIP
-    CODES_LIST = [c for c in re.findall(r"\S+", Codes_entry.get("0.0", ctk.END))]
-    total = len(CODES_LIST)
-    if not total:
-        return
-    Codes_entry.configure(state="disabled")
-    select_button.configure(state="disabled")
-    Codes_button.configure(state="disabled")
-    progress.pack(pady=10)
-    progress.set(0)
-    app.update_idletasks()
-
-    counter = {"v": 0}
-    def update_progress():
-        counter["v"] += 1
-        progress.set(counter["v"] / total)
-        app.update_idletasks()
-
-    RESULT_OK, RESULT_SKIP = consultar_codigos(CODES_LIST, progress_callback=update_progress)
-    app.after(500, app.destroy)
-
-Codes_button = ctk.CTkButton(app, text="Iniciar", command=start_process)
-Codes_button.pack(pady=10)
-
-app.mainloop()
-
 
 def baixar_ars_da_tela(expected=0, progress_callback=None):
     """Download AR images visible on the current page.
@@ -446,76 +281,229 @@ def consultar_codigos(codes: list[str], progress_callback=None):
 
     return all_ok, all_skip
 
-# ========= App final: Converter para PDF e deletar PNG =========
 
-# quando acionado apaga os arquivos PNG da pasta de download
-def delete_png():
+def main():
+    global driver, wait
+    ctk.set_appearance_mode("System")  # Modes: "System" (standard), "Dark", light
+    os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+    os.makedirs(PROFILE_DIR, exist_ok=True)
+
+    for f in ["SingletonLock", "SingletonCookie", "SingletonSocket", "SingletonSemaphore"]:
+        p = Path(PROFILE_DIR, f)
+        if p.exists():
+            try:
+                p.unlink()
+            except:
+                pass
+
+    options = webdriver.ChromeOptions()
+    options.add_argument(fr"--user-data-dir={PROFILE_DIR}")
+    options.add_argument("--no-first-run")
+    options.add_argument("--no-default-browser-check")
+    options.add_argument("--disable-backgrounding-occluded-windows")
+    options.add_argument("--disable-features=Translate,MediaRouter,PasswordLeakDetection,AutomationControlled")
+    options.add_argument("--headless=new")           # <<< HEADLESS
+    options.add_argument("--disable-gpu")
+    options.add_argument(f"--window-size={WINDOW_SIZE}")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--no-sandbox")
+
+    options.add_experimental_option("prefs", {
+        "credentials_enable_service": False,
+        "profile.password_manager_enabled": False,
+        "autofill.profile_enabled": False,
+        "autofill.credit_card_enabled": False,
+        "download.default_directory": DOWNLOAD_DIR,
+        "download.prompt_for_download": False,
+        "download.directory_upgrade": True,
+        "safebrowsing.enabled": True,
+    })
+
+    service = Service(ChromeDriverManager().install())
     try:
-        count = 0
-        for f in os.listdir(DOWNLOAD_DIR):
-            if f.lower().endswith(".png"):
-                os.remove(os.path.join(DOWNLOAD_DIR, f))
-                count += 1
-        print(f"{count} arquivos PNG removidos.")
-        delete.configure(text='arquivos deleteados')
-    except Exception as e:
-        print(f"Erro ao deletar PNGs: {e}")
+        driver = webdriver.Chrome(service=service, options=options)
+    except SessionNotCreatedException:
+        print("[ERRO] Falha ao iniciar o Chrome.")
+        raise
 
-# quando acionado converte os arquivos PNG/JPG para PDF
-def pdf_convert():
+    wait = WebDriverWait(driver, 25)
+
+    driver.get(TARGET)
     try:
-        # pega apenas imagens suportadas
-        allimages = [
-            os.path.join(DOWNLOAD_DIR, f)
-            for f in os.listdir(DOWNLOAD_DIR)
-            if f.lower().endswith(('.png', '.jpg', '.jpeg'))
-        ]
+        WebDriverWait(driver, 12).until(EC.url_contains("https://sgd.correios.com.br/sgd/app/"))
+    except TimeoutException:
+        driver.execute_script("window.location.href = arguments[0];", TARGET)
+        WebDriverWait(driver, 12).until(EC.url_contains("https://sgd.correios.com.br/sgd/app/"))
 
-        if not allimages:
-            print("Nenhuma imagem encontrada.")
-            return
+    try:
+        WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.CLASS_NAME, "entrar"))).click()
+    except TimeoutException:
+        pass  # pode já estar no quadro de login
 
-        for img in allimages:
-            with Image.open(img) as image:
-                # converte para RGB se necessário
-                if image.mode in ("RGBA", "P", "CMYK"):
-                    image = image.convert("RGB")
-
-                pdf_path = img.rsplit('.', 1)[0] + '.pdf'
-                image.save(pdf_path, "PDF", resolution=100.0)
-            print(f"OK {img} -> {pdf_path}")   # no Unicode symbols
-            sucess.configure(text='arquivos convertidos para PDF \n na mesma pasta de download')
-    except Exception as e:
-        print(f"Erro durante a conversao: {e}")
-
-# ========= Execução =========
-try:
-    print("ARs baixados")
-    for b in RESULT_OK:
-        tag_fb = "(fallback)" if b.get("fallback") else ""
-        print(f"[{b['pos']:03}] {b.get('codigo','?')} -> {b['arquivos']}{tag_fb}")
-    print("Itens pulados")
-    for p in RESULT_SKIP:
-        print(f"[{p['pos']:03}] {p.get('codigo','?')} -> {p['motivo']}")
-
+    # =========================
+    # 1º APP: Captura de usuário/senha e login
+    # =========================
     app = ctk.CTk()
     app.title("PRINTPOST A.R AUTOMATIZADO")
-    app.geometry("400x300")
-    finish = ctk.CTkLabel(app, text='Processo concluido, verifique a pasta de downloads,\nlocalizada em C:/Users/seu_usuario/SGD-BAIXADOS')
-    finish.pack(pady=10)
-    pdf_entry = ctk.CTkButton(app, text="converter para pdf", command=pdf_convert)
-    pdf_entry.pack(pady=10)
-    sucess = ctk.CTkLabel(app, text=f'')
-    sucess.pack(pady=10)
-    button_quit = ctk.CTkButton(app, text="Fechar", command=app.destroy)
-    button_quit.pack(pady=10)
-    delete_button = ctk.CTkButton(app, text="deletar arquivos PNG", command=delete_png)
-    delete_button.pack(pady=10)
-    delete = ctk.CTkLabel(app, text=f'')
-    delete.pack(pady=10)
+    app.geometry("500x300")
+
+    definer_label = ctk.CTkLabel(app, text='ensira os codigos abaixo')
+    definer_label.pack(pady=10)
+    user = ctk.CTkEntry(app, placeholder_text="Usuario SGD")
+    user.pack()
+    pass_label = ctk.CTkLabel(app, text='ensira a senha' )
+    pass_label.pack()
+    password = ctk.CTkEntry(app, placeholder_text="Senha SGD", show="*")
+    password.pack()
+
+    Butão_check = ctk.CTkLabel(app, text='')
+    Butão_check.pack()
+
+    def entrar_sgd():
+        try:
+            SGD_USUARIO = user.get()
+            SGD_SENHA = password.get()
+
+            u = wait.until(EC.presence_of_element_located((By.ID, "username")))
+            u.clear(); u.send_keys(SGD_USUARIO)
+            pwd = wait.until(EC.presence_of_element_located((By.ID, "password")))
+            pwd.clear(); pwd.send_keys(SGD_SENHA)
+            pwd.send_keys(Keys.RETURN)
+
+            wait.until(EC.presence_of_element_located((By.ID, "nav-menu")))
+            Butão_check.configure(text="Login efetuado.")
+        except Exception as e:
+            Butão_check.configure(text=f"Tentando prosseguir... ({e})")
+        finally:
+            app.after(2000, app.destroy)
+
+    butão_define = ctk.CTkButton(app, text="Login", command=entrar_sgd)
+    butão_define.pack(pady=10)
+
     app.mainloop()
-except Exception as e:
-    print(f"[ERRO] Falha ao baixar ARs: {e}")
-finally:
-    time.sleep(1)
-    driver.quit()
+
+    # =========================
+    # 2º APP: Entrada de códigos e progresso de download
+    # =========================
+    app = ctk.CTk()
+    app.title("PRINTPOST A.R AUTOMATIZADO")
+    app.geometry("500x350")
+    store_codes = ctk.CTkLabel(app, text='insira os codigos a serem consultados, limite de 200 por vez')
+    store_codes.pack(pady=10)
+
+    Codes_entry = ctk.CTkTextbox(app, width=400, height=150)
+    Codes_entry.pack()
+
+    def select_file():
+        path = filedialog.askopenfilename(filetypes=[("Text files", "*.txt")])
+        if path:
+            codes = load_codes_from_file(path)
+            Codes_entry.delete("0.0", ctk.END)
+            Codes_entry.insert("0.0", "\n".join(codes))
+
+    select_button = ctk.CTkButton(app, text="Selecionar arquivo", command=select_file)
+    select_button.pack(pady=5)
+
+    progress = ctk.CTkProgressBar(app, width=400)
+
+    CODES_LIST = []
+    RESULT_OK, RESULT_SKIP = [], []
+
+    def start_process():
+        nonlocal CODES_LIST, RESULT_OK, RESULT_SKIP
+        CODES_LIST = [c for c in re.findall(r"\S+", Codes_entry.get("0.0", ctk.END))]
+        total = len(CODES_LIST)
+        if not total:
+            return
+        Codes_entry.configure(state="disabled")
+        select_button.configure(state="disabled")
+        Codes_button.configure(state="disabled")
+        progress.pack(pady=10)
+        progress.set(0)
+        app.update_idletasks()
+
+        counter = {"v": 0}
+
+        def update_progress():
+            counter["v"] += 1
+            progress.set(counter["v"] / total)
+            app.update_idletasks()
+
+        RESULT_OK, RESULT_SKIP = consultar_codigos(CODES_LIST, progress_callback=update_progress)
+        app.after(500, app.destroy)
+
+    Codes_button = ctk.CTkButton(app, text="Iniciar", command=start_process)
+    Codes_button.pack(pady=10)
+
+    app.mainloop()
+
+    # ========= Execução =========
+    try:
+        print("ARs baixados")
+        for b in RESULT_OK:
+            tag_fb = "(fallback)" if b.get("fallback") else ""
+            print(f"[{b['pos']:03}] {b.get('codigo','?')} -> {b['arquivos']}{tag_fb}")
+        print("Itens pulados")
+        for p in RESULT_SKIP:
+            print(f"[{p['pos']:03}] {p.get('codigo','?')} -> {p['motivo']}")
+
+        app = ctk.CTk()
+        app.title("PRINTPOST A.R AUTOMATIZADO")
+        app.geometry("400x300")
+        finish = ctk.CTkLabel(app, text='Processo concluido, verifique a pasta de downloads,\nlocalizada em C:/Users/seu_usuario/SGD-BAIXADOS')
+        finish.pack(pady=10)
+        sucess = ctk.CTkLabel(app, text='')
+        sucess.pack(pady=10)
+        delete = ctk.CTkLabel(app, text='')
+        delete.pack(pady=10)
+
+        def delete_png():
+            try:
+                count = 0
+                for f in os.listdir(DOWNLOAD_DIR):
+                    if f.lower().endswith(".png"):
+                        os.remove(os.path.join(DOWNLOAD_DIR, f))
+                        count += 1
+                print(f"{count} arquivos PNG removidos.")
+                delete.configure(text='arquivos deleteados')
+            except Exception as e:
+                print(f"Erro ao deletar PNGs: {e}")
+
+        def pdf_convert():
+            try:
+                allimages = [
+                    os.path.join(DOWNLOAD_DIR, f)
+                    for f in os.listdir(DOWNLOAD_DIR)
+                    if f.lower().endswith(('.png', '.jpg', '.jpeg'))
+                ]
+                if not allimages:
+                    print("Nenhuma imagem encontrada.")
+                    return
+                for img in allimages:
+                    with Image.open(img) as image:
+                        if image.mode in ("RGBA", "P", "CMYK"):
+                            image = image.convert("RGB")
+                        pdf_path = img.rsplit('.', 1)[0] + '.pdf'
+                        image.save(pdf_path, "PDF", resolution=100.0)
+                    print(f"OK {img} -> {pdf_path}")
+                    sucess.configure(text='arquivos convertidos para PDF \n na mesma pasta de download')
+            except Exception as e:
+                print(f"Erro durante a conversao: {e}")
+
+        pdf_entry = ctk.CTkButton(app, text="converter para pdf", command=pdf_convert)
+        pdf_entry.pack(pady=10)
+        button_quit = ctk.CTkButton(app, text="Fechar", command=app.destroy)
+        button_quit.pack(pady=10)
+        delete_button = ctk.CTkButton(app, text="deletar arquivos PNG", command=delete_png)
+        delete_button.pack(pady=10)
+
+        app.mainloop()
+    except Exception as e:
+        print(f"[ERRO] Falha ao baixar ARs: {e}")
+    finally:
+        time.sleep(1)
+        driver.quit()
+
+
+if __name__ == "__main__":
+    main()
