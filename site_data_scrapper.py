@@ -447,13 +447,11 @@ def consultar_codigos(codes: list[str], progress_callback=None):
     return all_ok, all_skip
 
 # ========= App final: Converter para PDF e deletar PNG =========
-# quando acionado apaga os arquivos PNG da pasta de download
-
-# ========= App final: Converter para PDF e deletar PNG =========
 # quando acionado fecha o app em 2 segundos
 def destroy():
     app.after(2000, app.destroy)
-    # quando acionado apaga os arquivos PNG da pasta de download
+
+# quando acionado apaga os arquivos PNG da pasta de download
 def delete_png():
     try:
         count = 0
