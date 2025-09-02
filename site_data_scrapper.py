@@ -1,5 +1,5 @@
 #importações para o script funcionar
-import os, re, time, base64, requests, sys
+import os, re, time, requests
 import customtkinter as ctk
 ctk.set_appearance_mode("System")  # Modes: "System" (standard), "Dark", light
 from pathlib import Path
@@ -19,6 +19,7 @@ DOWNLOAD_DIR = str(HOME / "SGD-BAIXADOS")
 PROFILE_DIR = str(HOME / r"AppData/Local/Google/Chrome/User Data/Default")
 TARGET       = "https://sgd.correios.com.br/sgd/app/"
 MIN_BYTES_OK = 1024   # arquivos <1KB costumam ser bloqueio/HTML de login
+WINDOW_SIZE  = os.environ.get("CHROME_WINDOW_SIZE", "1280,720")
 
 # ========= Pastas, se não existirem o script cria com os.makedirs =========
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
@@ -40,7 +41,7 @@ options.add_argument("--disable-backgrounding-occluded-windows")
 options.add_argument("--disable-features=Translate,MediaRouter,PasswordLeakDetection,AutomationControlled")
 options.add_argument("--headless=new")           # <<< HEADLESS
 options.add_argument("--disable-gpu")
-options.add_argument("--window-size=1920,1080")
+options.add_argument(f"--window-size={WINDOW_SIZE}")
 options.add_argument("--disable-dev-shm-usage")
 options.add_argument("--no-sandbox")
 
@@ -68,24 +69,26 @@ except SessionNotCreatedException:
 wait = WebDriverWait(driver, 25)
 
 # ========= Helpers para garantir que o site seja acessado =========
-def _requests_with_selenium_cookies(driver, referer=None):
-    s = requests.Session()
-    # user agent + referer ajudam a evitar bloqueio
-    ua = driver.execute_script("return navigator.userAgent")
-    s.headers.update({
-        "User-Agent": ua,
-        "Accept": "image/avif,image/webp,image/*,*/*;q=0.8",
-    })
+def _requests_with_selenium_cookies(driver, referer=None, session=None):
+    """Reuse a single requests.Session for lighter resource usage."""
+    s = session or requests.Session()
+    if not session:
+        # user agent + cookies apenas na primeira vez
+        ua = driver.execute_script("return navigator.userAgent")
+        s.headers.update({
+            "User-Agent": ua,
+            "Accept": "image/avif,image/webp,image/*,*/*;q=0.8",
+        })
+        for c in driver.get_cookies():
+            # requests aceita domínio com/sem ponto inicial
+            s.cookies.set(
+                name=c["name"],
+                value=c["value"],
+                domain=c.get("domain"),
+                path=c.get("path", "/")
+            )
     if referer:
         s.headers.update({"Referer": referer})
-    for c in driver.get_cookies():
-        # requests aceita domínio com/sem ponto inicial
-        s.cookies.set(
-            name=c["name"],
-            value=c["value"],
-            domain=c.get("domain"),
-            path=c.get("path", "/")
-        )
     return s
 
 def _sanitize_name(name: str) -> str:
@@ -105,8 +108,8 @@ def _infer_ext_from_content_type(ct: str) -> str:
     if "pdf" in ct: return ".pdf"
     return ".bin"
 
-def _download_img_with_cookies(driver, url: str, out_base: str, referer: str):
-    s = _requests_with_selenium_cookies(driver, referer=referer)
+def _download_img_with_cookies(driver, url: str, out_base: str, referer: str, session):
+    s = _requests_with_selenium_cookies(driver, referer=referer, session=session)
     r = s.get(url, timeout=90, allow_redirects=True)
 
     # redirecionou p/ login? conteúdo HTML?
@@ -263,6 +266,7 @@ wait.until(EC.element_to_be_clickable((By.PARTIAL_LINK_TEXT, "Pesquisar"))).clic
 # ========= Baixar ARs (HEADLESS; sem Ctrl+S) =========
 def baixar_ars_da_tela():
     baixados, pulados = [], []
+    session = _requests_with_selenium_cookies(driver)
     try:
         wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "a.verArDigital")))
     except TimeoutException:
@@ -327,7 +331,7 @@ def baixar_ars_da_tela():
 
         # Tenta baixar via requests com cookies
         out_base = f"{codigo}"
-        out_path, err = _download_img_with_cookies(driver, img_url, out_base, referer)
+        out_path, err = _download_img_with_cookies(driver, img_url, out_base, referer, session)
 
         if out_path and not err:
             baixados.append({"pos": idx, "codigo": codigo, "arquivos": [os.path.basename(out_path)]})
@@ -365,7 +369,7 @@ def delete_png():
                 os.remove(os.path.join(DOWNLOAD_DIR, f))
                 count += 1
         print(f"{count} arquivos PNG removidos.")
-        delete.configure(app, text=f'arquivos deleteados')
+        delete.configure(text='arquivos deleteados')
     except Exception as e:
         print(f"Erro ao deletar PNGs: {e}")
         # quando acionado converte os arquivos PNG/JPG para PDF
@@ -383,15 +387,15 @@ def pdf_convert():
             return
 
         for img in allimages:
-            image = Image.open(img)
-            # converte para RGB se necessário
-            if image.mode in ("RGBA", "P", "CMYK"):
-                image = image.convert("RGB")
+            with Image.open(img) as image:
+                # converte para RGB se necessário
+                if image.mode in ("RGBA", "P", "CMYK"):
+                    image = image.convert("RGB")
 
-            pdf_path = img.rsplit('.', 1)[0] + '.pdf'
-            image.save(pdf_path, "PDF", resolution=100.0)
+                pdf_path = img.rsplit('.', 1)[0] + '.pdf'
+                image.save(pdf_path, "PDF", resolution=100.0)
             print(f"OK {img} -> {pdf_path}")   # no Unicode symbols
-            sucess.configure(app, text=f'arquivos convertidos para PDF \n na mesma pasta de download')
+            sucess.configure(text='arquivos convertidos para PDF \n na mesma pasta de download')
     except Exception as e:
         print(f"Erro durante a conversao: {e}")
 
