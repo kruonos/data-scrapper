@@ -190,10 +190,10 @@ def entrar_sgd():
         # Aguarda pós-login
         wait.until(EC.presence_of_element_located((By.ID, "nav-menu")))
         Butão_check.configure(text="Login efetuado.")
-        app.after(2000, app.destroy)
     except Exception as e:
         # Se já estava logado ou layout diferente, tenta seguir mesmo assim.
         Butão_check.configure(text=f"Tentando prosseguir... ({e})")
+    finally:
         app.after(2000, app.destroy)
 
 # Botão de login
@@ -313,12 +313,12 @@ def baixar_ars_da_tela(expected=0, progress_callback=None):
         new_handles = list(set(driver.window_handles) - before)
         if new_handles:
             # Nova aba
-            main_handle = driver.current_window_handle
+            parent_handle = driver.current_window_handle
             new_handle = new_handles[0]
             driver.switch_to.window(new_handle)
         else:
             # Mesma aba
-            main_handle = None
+            parent_handle = None
 
         # Aguarda o <img src*="verArDigital.php">
         try:
@@ -339,12 +339,12 @@ def baixar_ars_da_tela(expected=0, progress_callback=None):
                     }
                 )
                 # fecha aba se for nova
-                if main_handle:
+                if parent_handle:
                     try:
                         driver.close()
                     except:
                         pass
-                    driver.switch_to.window(main_handle)
+                    driver.switch_to.window(parent_handle)
                 continue
 
         referer = driver.current_url
@@ -386,12 +386,12 @@ def baixar_ars_da_tela(expected=0, progress_callback=None):
                 )
 
         # Fecha aba nova (se houve) e volta
-        if main_handle:
+        if parent_handle:
             try:
                 driver.close()
             except:
                 pass
-            driver.switch_to.window(main_handle)
+            driver.switch_to.window(parent_handle)
             time.sleep(0.1)
 
         if progress_callback:
@@ -447,9 +447,6 @@ def consultar_codigos(codes: list[str], progress_callback=None):
     return all_ok, all_skip
 
 # ========= App final: Converter para PDF e deletar PNG =========
-# quando acionado fecha o app em 2 segundos
-def destroy():
-    app.after(2000, app.destroy)
 
 # quando acionado apaga os arquivos PNG da pasta de download
 def delete_png():
@@ -463,7 +460,8 @@ def delete_png():
         delete.configure(text='arquivos deleteados')
     except Exception as e:
         print(f"Erro ao deletar PNGs: {e}")
-        # quando acionado converte os arquivos PNG/JPG para PDF
+
+# quando acionado converte os arquivos PNG/JPG para PDF
 def pdf_convert():
     try:
         # pega apenas imagens suportadas
