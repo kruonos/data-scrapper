@@ -239,8 +239,19 @@ def baixar_ars_da_tela(expected=0, progress_callback=None):
     return baixados, pulados
 
 
-def consultar_codigos(codes: list[str], progress_callback=None):
-    """Consulta códigos em lotes de até 200."""
+def consultar_codigos(codes: list[str], progress_callback=None, batch_size: int = 200):
+    """Consulta códigos em lotes sequenciais.
+
+    Parâmetros
+    -----------
+    codes : list[str]
+        Lista de códigos a serem consultados.
+    progress_callback : callable, opcional
+        Função chamada após o processamento de cada item.
+    batch_size : int, opcional
+        Quantidade máxima de códigos por requisição. O padrão é 200.
+    """
+
     def chunk(lst, size):
         for i in range(0, len(lst), size):
             yield lst[i:i + size]
@@ -270,12 +281,14 @@ def consultar_codigos(codes: list[str], progress_callback=None):
         print(f"[WARN] Falha ao marcar 'Consultar vários objetos': {e}")
 
     all_ok, all_skip = [], []
-    for batch in chunk(codes, 200):
+    for batch in chunk(codes, batch_size):
         campo = wait.until(EC.presence_of_element_located((By.ID, "txtAreaObjetos")))
         campo.clear()
         campo.send_keys("\n".join(batch))
         wait.until(EC.element_to_be_clickable((By.PARTIAL_LINK_TEXT, "Pesquisar"))).click()
-        b_ok, b_skip = baixar_ars_da_tela(expected=len(batch), progress_callback=progress_callback)
+        b_ok, b_skip = baixar_ars_da_tela(
+            expected=len(batch), progress_callback=progress_callback
+        )
         all_ok.extend(b_ok)
         all_skip.extend(b_skip)
 
@@ -390,7 +403,10 @@ def main():
         app2 = ctk.CTk()
         app2.title("PRINTPOST A.R AUTOMATIZADO")
         app2.geometry("500x350")
-        store_codes = ctk.CTkLabel(app2, text='insira os codigos a serem consultados, limite de 200 por vez')
+        store_codes = ctk.CTkLabel(
+            app2,
+            text='insira os codigos a serem consultados; serão processados em lotes de 200',
+        )
         store_codes.pack(pady=10)
 
         Codes_entry = ctk.CTkTextbox(app2, width=400, height=150)
@@ -431,7 +447,14 @@ def main():
                 progress.set(counter["v"] / total)
                 app2.update_idletasks()
 
-            RESULT_OK, RESULT_SKIP = consultar_codigos(CODES_LIST, progress_callback=update_progress)
+            batch_size = 200
+            total_batches = (total + batch_size - 1) // batch_size
+            print(
+                f"Processando {total} códigos em {total_batches} lote(s) de até {batch_size}."
+            )
+            RESULT_OK, RESULT_SKIP = consultar_codigos(
+                CODES_LIST, progress_callback=update_progress, batch_size=batch_size
+            )
             app2.after(500, app2.destroy)
 
         Codes_button = ctk.CTkButton(app2, text="Iniciar", command=start_process)
