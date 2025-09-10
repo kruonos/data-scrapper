@@ -20,6 +20,7 @@ PROFILE_DIR = str(HOME / r"AppData/Local/Google/Chrome/User Data/Default")
 TARGET       = "https://sgd.correios.com.br/sgd/app/"
 MIN_BYTES_OK = 1024   # arquivos <1KB costumam ser bloqueio/HTML de login
 WINDOW_SIZE  = os.environ.get("CHROME_WINDOW_SIZE", "1280,720")
+HTML_ACTION_DELAY = 0.6
 
 driver = None
 wait = None
@@ -134,13 +135,15 @@ def baixar_ars_da_tela(expected=0, progress_callback=None):
         codigo = m.group(1) if m else f"desconhecido_{idx}"
 
         driver.execute_script("arguments[0].scrollIntoView({block:'center'});", a)
-        time.sleep(0.15)
+        time.sleep(HTML_ACTION_DELAY)
 
         before = set(driver.window_handles)
         # tenta clicar normal; se bloquear, força via JS
         try:
+            time.sleep(HTML_ACTION_DELAY)
             a.click()
         except ElementClickInterceptedException:
+            time.sleep(HTML_ACTION_DELAY)
             driver.execute_script("arguments[0].click();", a)
 
         # pode abrir na MESMA aba ou em NOVA aba; tratamos ambos:
@@ -258,24 +261,33 @@ def consultar_codigos(codes: list[str], progress_callback=None, batch_size: int 
 
     # Abre menu e vai para Consulta Objetos
     try:
-        wait.until(EC.element_to_be_clickable((By.ID, "nav-menu"))).click()
+        menu = wait.until(EC.element_to_be_clickable((By.ID, "nav-menu")))
+        time.sleep(HTML_ACTION_DELAY)
+        menu.click()
     except TimeoutException as e:
         print(f"[WARN] Falha ao clicar no menu principal (nav-menu): {e}")
 
     try:
-        wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "expandir"))).click()
+        expandir = wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "expandir")))
+        time.sleep(HTML_ACTION_DELAY)
+        expandir.click()
     except TimeoutException as e:
         print(f"[WARN] Falha ao expandir o menu: {e}")
 
-    wait.until(EC.element_to_be_clickable((By.LINK_TEXT, "Consulta Objetos"))).click()
+    consulta_obj = wait.until(EC.element_to_be_clickable((By.LINK_TEXT, "Consulta Objetos")))
+    time.sleep(HTML_ACTION_DELAY)
+    consulta_obj.click()
 
     try:
-        wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "opcoes"))).click()
+        opcoes = wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "opcoes")))
+        time.sleep(HTML_ACTION_DELAY)
+        opcoes.click()
     except TimeoutException as e:
         print(f"[WARN] Falha ao abrir opções de consulta: {e}")
 
     try:
         chk = wait.until(EC.element_to_be_clickable((By.ID, "chkConsultarVariosObjetos")))
+        time.sleep(HTML_ACTION_DELAY)
         chk.click()
     except TimeoutException as e:
         print(f"[WARN] Falha ao marcar 'Consultar vários objetos': {e}")
@@ -283,9 +295,13 @@ def consultar_codigos(codes: list[str], progress_callback=None, batch_size: int 
     all_ok, all_skip = [], []
     for batch in chunk(codes, batch_size):
         campo = wait.until(EC.presence_of_element_located((By.ID, "txtAreaObjetos")))
+        time.sleep(HTML_ACTION_DELAY)
         campo.clear()
+        time.sleep(HTML_ACTION_DELAY)
         campo.send_keys("\n".join(batch))
-        wait.until(EC.element_to_be_clickable((By.PARTIAL_LINK_TEXT, "Pesquisar"))).click()
+        pesquisar = wait.until(EC.element_to_be_clickable((By.PARTIAL_LINK_TEXT, "Pesquisar")))
+        time.sleep(HTML_ACTION_DELAY)
+        pesquisar.click()
         b_ok, b_skip = baixar_ars_da_tela(
             expected=len(batch), progress_callback=progress_callback
         )
@@ -349,7 +365,11 @@ def main():
         WebDriverWait(driver, 12).until(EC.url_contains("https://sgd.correios.com.br/sgd/app/"))
 
     try:
-        WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.CLASS_NAME, "entrar"))).click()
+        btn_entrar = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.CLASS_NAME, "entrar"))
+        )
+        time.sleep(HTML_ACTION_DELAY)
+        btn_entrar.click()
     except TimeoutException as e:
         print(f"[WARN] Botão 'entrar' não disponível (pode já estar no quadro de login): {e}")
 
@@ -378,9 +398,16 @@ def main():
             SGD_SENHA = password.get()
 
             u = wait.until(EC.presence_of_element_located((By.ID, "username")))
-            u.clear(); u.send_keys(SGD_USUARIO)
+            time.sleep(HTML_ACTION_DELAY)
+            u.clear()
+            time.sleep(HTML_ACTION_DELAY)
+            u.send_keys(SGD_USUARIO)
             pwd = wait.until(EC.presence_of_element_located((By.ID, "password")))
-            pwd.clear(); pwd.send_keys(SGD_SENHA)
+            time.sleep(HTML_ACTION_DELAY)
+            pwd.clear()
+            time.sleep(HTML_ACTION_DELAY)
+            pwd.send_keys(SGD_SENHA)
+            time.sleep(HTML_ACTION_DELAY)
             pwd.send_keys(Keys.RETURN)
 
             wait.until(EC.presence_of_element_located((By.ID, "nav-menu")))
