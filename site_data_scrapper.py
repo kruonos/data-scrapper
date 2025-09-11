@@ -330,7 +330,12 @@ def main():
     options.add_argument("--no-first-run")
     options.add_argument("--no-default-browser-check")
     options.add_argument("--disable-backgrounding-occluded-windows")
-    options.add_argument("--disable-features=Translate,MediaRouter,PasswordLeakDetection,AutomationControlled")
+    # Desabilita recursos que podem interferir no fluxo do Selenium.
+    # A inclusão de PasswordCheck busca evitar o aviso de senha comprometida
+    # que bloqueia a interação automática em novos perfis do Chrome.
+    options.add_argument(
+        "--disable-features=Translate,MediaRouter,PasswordLeakDetection,PasswordCheck,AutomationControlled"
+    )
     options.add_argument("--headless=new")           # <<< HEADLESS
     options.add_argument("--disable-gpu")
     options.add_argument(f"--window-size={WINDOW_SIZE}")
@@ -345,7 +350,11 @@ def main():
         "download.default_directory": DOWNLOAD_DIR,
         "download.prompt_for_download": False,
         "download.directory_upgrade": True,
-        "safebrowsing.enabled": True,
+        # Desabilita SafeBrowsing e verificações de vazamento de senhas
+        # para evitar pop-ups que atrapalham a automação.
+        "safebrowsing.enabled": False,
+        "safebrowsing.disable_download_protection": True,
+        "password_manager_leak_detection": False,
     })
 
     service = Service(ChromeDriverManager().install())
