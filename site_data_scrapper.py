@@ -357,6 +357,8 @@ def main():
         # Desativa por completo o gerenciador de senhas e a checagem de vazamentos.
         "profile.password_manager_leak_detection": False,
         "profile.password_manager_auto_signin": False,
+
+        "password_manager_leak_detection": False,
     })
 
     service = Service(ChromeDriverManager().install())
