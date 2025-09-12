@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Consult AR</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 2rem;
+    }
+    label {
+      font-weight: bold;
+    }
+    input {
+      width: 300px;
+      margin-right: 0.5rem;
+    }
+    #result {
+      margin-top: 1rem;
+      white-space: pre;
+    }
+  </style>
+</head>
+<body>
+  <h1>Consult AR</h1>
+
+  <label for="codeInput">Tracking Code:</label>
+  <input id="codeInput" type="text" placeholder="YQ694556119BR" />
+  <label for="apiKeyInput">API Key:</label>
+  <input id="apiKeyInput" type="text" placeholder="Your API key" />
+  <button id="consultBtn">Consult</button>
+
+  <pre id="result"></pre>
+
+  <script>
+    const consultBtn = document.getElementById('consultBtn');
+    const resultEl = document.getElementById('result');
+
+    consultBtn.addEventListener('click', () => {
+      resultEl.textContent = 'Loading...';
+
+      const code = document.getElementById('codeInput').value.trim();
+      const apiKey = document.getElementById('apiKeyInput').value.trim();
+      if (!code) {
+        resultEl.textContent = 'Please enter a tracking code.';
+        return;
+      }
+      if (!apiKey) {
+        resultEl.textContent = 'Please enter an API key.';
+        return;
+      }
+
+      const endpoint = `https://api.printpost.com.br/v1/letter/consult-ar/${code}`;
+      fetch(endpoint, {
+        method: 'GET',
+        headers: {
+          'X-Api-Key': apiKey
+        }
+      })
+        .then(async (res) => {
+          const text = await res.text();
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status} – ${text}`);
+          }
+          return text;
+        })
+        .then((text) => {
+          try {
+            const json = JSON.parse(text);
+            resultEl.textContent = JSON.stringify(json, null, 2);
+          } catch {
+            resultEl.textContent = text;
+          }
+        })
+        .catch((err) => {
+          resultEl.textContent = `Error: ${err.message}`;
+        });
+    });
+  </script>
+</body>
+</html>
