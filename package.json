@@ -1,0 +1,22 @@
+{
+  "name": "data-scrapper",
+  "version": "1.0.0",
+  "description": "This repository contains a simple static webpage for querying the [Printpost letter API](https://api.printpost.com.br/v1/letter/consult-ar/).",
+  "main": "index.js",
+  "scripts": {
+    "fetch-ar": "node scripts/fetch_ar.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "cheerio": "^1.1.2",
+    "p-limit": "^7.1.1",
+    "proxy-agent": "^6.5.0",
+    "sharp": "^0.34.4",
+    "tesseract.js": "^6.0.1",
+    "tough-cookie": "^5.1.2"
+  }
+}
