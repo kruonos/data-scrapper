@@ -16,6 +16,9 @@ const { ProxyAgent } = require('proxy-agent');
 
 const ENV_USERNAME = typeof process.env.SGD_USERNAME === 'string' ? process.env.SGD_USERNAME.trim() : null;
 const ENV_PASSWORD = typeof process.env.SGD_PASSWORD === 'string' ? process.env.SGD_PASSWORD.trim() : null;
+
+const DEFAULT_USERNAME = process.env.SGD_USERNAME || 'gpp159753.';
+const DEFAULT_PASSWORD = process.env.SGD_PASSWORD || 'C159@753';
 const DEFAULT_TRACKING_FILE = path.join(__dirname, '..', 'tracking-codes.txt');
 const DEFAULT_OUTPUT_DIR = path.join(__dirname, '..', 'output');
 const LOGIN_ENTRY_URL = 'https://sgd.correios.com.br/sgd/core/seguranca/entrar.php';
@@ -29,6 +32,10 @@ function parseArgs(argv) {
     limit: Infinity,
     username: ENV_USERNAME,
     password: ENV_PASSWORD,
+
+
+    username: DEFAULT_USERNAME,
+    password: DEFAULT_PASSWORD,
     codes: null,
     skipOcr: false,
   };
@@ -487,11 +494,19 @@ async function processCode(request, code, dirs, options) {
 
 async function runFetcher(rawOptions = {}) {
   const options = normalizeOptions(rawOptions);
+
+
+async function main() {
+  const options = parseArgs(process.argv.slice(2));
+main
   const codes = await loadTrackingCodes(options);
   const limitedCodes = options.limit === Infinity ? codes : codes.slice(0, options.limit);
 
   if (!limitedCodes.length) {
     throw new Error('No tracking codes to process.');
+
+    console.error('No tracking codes to process.');
+    process.exit(1);
   }
 
   const jar = new CookieJar(undefined, { rejectPublicSuffixes: false });
@@ -577,11 +592,16 @@ async function runFetcher(rawOptions = {}) {
 async function main() {
   const cliOptions = parseArgs(process.argv.slice(2));
   await runFetcher(cliOptions);
+
+  console.log(`Finished. ${results.filter((r) => r.status === 'OK').length} succeeded, ${results.filter((r) => r.status !== 'OK').length} failed.`);
+  console.log(`Results saved to ${outputDir}`);
 }
 
 if (require.main === module) {
   main().catch((error) => {
     console.error(error.message || error);
+
+    console.error(error);
     process.exit(1);
   });
 }
@@ -590,6 +610,8 @@ module.exports = {
   runFetcher,
   normalizeOptions,
   parseArgs,
+
+
   extractReturnReason,
   stripAccents,
   loadTrackingCodes,
