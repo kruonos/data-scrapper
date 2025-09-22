@@ -6,6 +6,11 @@
   "scripts": {
     "fetch-ar": "node scripts/fetch_ar.js",
     "start": "node scripts/server.js",
+
+  "description": "This repository contains a simple static webpage for querying the [Printpost letter API](https://api.printpost.com.br/v1/letter/consult-ar/).",
+  "main": "index.js",
+  "scripts": {
+    "fetch-ar": "node scripts/fetch_ar.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -21,5 +26,6 @@
     "tesseract.js": "^6.0.1",
     "tough-cookie": "^5.1.2",
     "undici": "^6.19.8"
+    "tough-cookie": "^5.1.2"
   }
 }

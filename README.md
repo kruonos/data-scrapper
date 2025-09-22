@@ -4,6 +4,7 @@ This repository provides a small toolkit for working with Correios AR data. It i
 
 ## Using the web interface
 
+
 1. Install dependencies (needed for both the automation and the local web server):
 
    ```bash
@@ -36,14 +37,41 @@ You can also run the automation directly from the command line. This is useful f
    ```bash
    export SGD_USERNAME="<your-username>"
    export SGD_PASSWORD="<your-password>"
+
+The page sends the request with the provided `X-Api-Key` header and displays either the JSON response or an error message.
+
+## Automatic AR download and OCR
+
+The repository now also includes a Node.js automation that logs into the Correios SGD portal, downloads the AR images and performs OCR to extract the return reason for each tracking code.
+
+### Prerequisites
+
+1. Install dependencies:
+
+   ```bash
+   npm install
+   ```
+
+2. (Optional) export different credentials if you do not want to use the default ones baked into the script:
+
+   ```bash
+   export SGD_USERNAME="gpp159753."
+   export SGD_PASSWORD="C159@753"
    ```
 
 ### Running the scraper
+
 
 Execute the helper script with the desired options. Make sure the automation knows your credentials by either exporting the environment variables above or passing `--username` and `--password` flags:
 
 ```bash
 npm run fetch-ar -- --limit 5 --output output --input tracking-codes.txt --username "$SGD_USERNAME" --password "$SGD_PASSWORD"
+=======
+Execute the helper script with the desired options:
+
+```bash
+npm run fetch-ar -- --limit 5 --output output --input tracking-codes.txt
+
 ```
 
 Key options:
@@ -53,7 +81,10 @@ Key options:
 * `--limit` / `-l`: process only the first _N_ codes.
 * `--output` / `-o`: directory for downloaded images, OCR text and consolidated reports (default: `output`).
 * `--skip-ocr`: downloads the AR images without running OCR.
+
 * `--username` / `--password`: Correios SGD credentials (required unless set via environment variables).
+=======
+* `--username` / `--password`: override the login credentials.
 * `--concurrency`: parallel downloads/OCR workers (default: `3`).
 
 The script produces:
