@@ -14,6 +14,8 @@ const Tesseract = require('tesseract.js');
 const pLimit = require('p-limit').default;
 const { ProxyAgent } = require('proxy-agent');
 
+const ENV_USERNAME = typeof process.env.SGD_USERNAME === 'string' ? process.env.SGD_USERNAME.trim() : null;
+const ENV_PASSWORD = typeof process.env.SGD_PASSWORD === 'string' ? process.env.SGD_PASSWORD.trim() : null;
 const DEFAULT_USERNAME = process.env.SGD_USERNAME || 'gpp159753.';
 const DEFAULT_PASSWORD = process.env.SGD_PASSWORD || 'C159@753';
 const DEFAULT_TRACKING_FILE = path.join(__dirname, '..', 'tracking-codes.txt');
@@ -27,6 +29,9 @@ function parseArgs(argv) {
     outputDir: DEFAULT_OUTPUT_DIR,
     concurrency: 3,
     limit: Infinity,
+    username: ENV_USERNAME,
+    password: ENV_PASSWORD,
+
     username: DEFAULT_USERNAME,
     password: DEFAULT_PASSWORD,
     codes: null,
@@ -82,6 +87,74 @@ function parseArgs(argv) {
   }
   return options;
 }
+
+function normalizeOptions(rawOptions = {}) {
+  const resolvedInput = rawOptions.inputFile ? path.resolve(rawOptions.inputFile) : DEFAULT_TRACKING_FILE;
+  const resolvedOutput = rawOptions.outputDir ? path.resolve(rawOptions.outputDir) : DEFAULT_OUTPUT_DIR;
+
+  let username = rawOptions.username;
+  if (typeof username !== 'string' || !username.trim()) {
+    username = ENV_USERNAME || '';
+  }
+  let password = rawOptions.password;
+  if (typeof password !== 'string' || !password.trim()) {
+    password = ENV_PASSWORD || '';
+  }
+
+  let codes = rawOptions.codes;
+  if (Array.isArray(codes)) {
+    codes = codes.map((code) => code.trim()).filter(Boolean);
+  } else if (typeof codes === 'string') {
+    codes = codes
+      .split(/[,\r\n]+/)
+      .map((code) => code.trim())
+      .filter(Boolean);
+  } else {
+    codes = null;
+  }
+
+  let concurrency = Number(rawOptions.concurrency);
+  if (!Number.isFinite(concurrency) || concurrency <= 0) {
+    concurrency = 3;
+  } else {
+    concurrency = Math.floor(concurrency);
+  }
+
+  let limit = rawOptions.limit;
+  if (limit === undefined || limit === null || limit === Infinity) {
+    limit = Infinity;
+  } else {
+    const limitNumber = Number(limit);
+    if (!Number.isFinite(limitNumber) || limitNumber <= 0) {
+      limit = Infinity;
+    } else {
+      limit = Math.floor(limitNumber);
+    }
+  }
+
+  const skipOcr = Boolean(rawOptions.skipOcr);
+
+  const normalized = {
+    inputFile: resolvedInput,
+    outputDir: resolvedOutput,
+    concurrency,
+    limit,
+    username: username.trim(),
+    password: password.trim(),
+    codes: codes && codes.length ? Array.from(new Set(codes)) : null,
+    skipOcr,
+  };
+
+  if (!normalized.username) {
+    throw new Error('SGD username is required. Provide it via --username, SGD_USERNAME or the web form.');
+  }
+  if (!normalized.password) {
+    throw new Error('SGD password is required. Provide it via --password, SGD_PASSWORD or the web form.');
+  }
+
+  return normalized;
+}
+
 
 async function loadTrackingCodes(options) {
   if (options.codes && options.codes.length) {
@@ -418,12 +491,16 @@ async function processCode(request, code, dirs, options) {
   }
 }
 
+async function runFetcher(rawOptions = {}) {
+  const options = normalizeOptions(rawOptions);
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const codes = await loadTrackingCodes(options);
   const limitedCodes = options.limit === Infinity ? codes : codes.slice(0, options.limit);
 
   if (!limitedCodes.length) {
+    throw new Error('No tracking codes to process.');
     console.error('No tracking codes to process.');
     process.exit(1);
   }
@@ -490,18 +567,45 @@ async function main() {
   await fs.writeFile(path.join(outputDir, 'results.csv'), `${csvRows.join('\n')}\n`, 'utf8');
   await fs.writeFile(path.join(outputDir, 'results.json'), `${JSON.stringify(jsonResults, null, 2)}\n`, 'utf8');
 
+  const summary = {
+    total: limitedCodes.length,
+    succeeded: results.filter((r) => r.status === 'OK').length,
+    failed: results.filter((r) => r.status !== 'OK').length,
+  };
+
+  console.log(`Finished. ${summary.succeeded} succeeded, ${summary.failed} failed.`);
+  console.log(`Results saved to ${outputDir}`);
+
+  return {
+    options,
+    codes: limitedCodes,
+    results,
+    summary,
+    outputDir,
+  };
+}
+
+async function main() {
+  const cliOptions = parseArgs(process.argv.slice(2));
+  await runFetcher(cliOptions);
   console.log(`Finished. ${results.filter((r) => r.status === 'OK').length} succeeded, ${results.filter((r) => r.status !== 'OK').length} failed.`);
   console.log(`Results saved to ${outputDir}`);
 }
 
 if (require.main === module) {
   main().catch((error) => {
+    console.error(error.message || error);
+
     console.error(error);
     process.exit(1);
   });
 }
 
 module.exports = {
+  runFetcher,
+  normalizeOptions,
+  parseArgs,
+
   extractReturnReason,
   stripAccents,
   loadTrackingCodes,

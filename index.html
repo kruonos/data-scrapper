@@ -7,75 +7,256 @@
     body {
       font-family: sans-serif;
       margin: 2rem;
+      max-width: 900px;
+    }
+    h1 {
+      margin-bottom: 0.5rem;
+    }
+    h2 {
+      margin-top: 2rem;
+      margin-bottom: 0.5rem;
     }
     label {
       font-weight: bold;
     }
-    input {
-      width: 300px;
-      margin-right: 0.5rem;
+    input[type="text"],
+    input[type="password"],
+    input[type="number"],
+    textarea {
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
+      padding: 0.4rem;
+      font-size: 1rem;
     }
-    #result {
+    textarea {
+      min-height: 8rem;
+      font-family: monospace;
+    }
+    button {
+      padding: 0.45rem 0.9rem;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    .inline-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+    .inline-controls input[type="number"] {
+      width: 120px;
+    }
+    .field {
+      margin-bottom: 0.75rem;
+    }
+    #result,
+    #arResults {
       margin-top: 1rem;
-      white-space: pre;
+      white-space: pre-wrap;
+      background: #f5f5f5;
+      padding: 0.75rem;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+      max-height: 400px;
+      overflow: auto;
+    }
+    #arStatus {
+      margin-top: 0.5rem;
+      font-weight: bold;
+    }
+    .note {
+      color: #555;
+      font-size: 0.95rem;
     }
   </style>
 </head>
 <body>
-  <h1>Consult AR</h1>
+  <h1>Correios AR Toolkit</h1>
 
-  <label for="codeInput">Tracking Code:</label>
-  <input id="codeInput" type="text" placeholder="YQ694556119BR" />
-  <label for="apiKeyInput">API Key:</label>
-  <input id="apiKeyInput" type="text" placeholder="Your API key" />
-  <button id="consultBtn">Consult</button>
+  <section>
+    <h2>Consult Printpost AR API</h2>
+    <p class="note">Enter a tracking code and your Printpost API key to inspect the raw JSON response.</p>
+    <div class="field">
+      <label for="codeInput">Tracking Code</label>
+      <input id="codeInput" type="text" placeholder="YQ694556119BR" />
+    </div>
+    <div class="field">
+      <label for="apiKeyInput">API Key</label>
+      <input id="apiKeyInput" type="text" placeholder="Your API key" />
+    </div>
+    <button id="consultBtn" type="button">Consult</button>
+    <pre id="result"></pre>
+  </section>
 
-  <pre id="result"></pre>
+  <section>
+    <h2>Download Correios AR Images &amp; OCR</h2>
+    <p class="note">
+      Start the automation server with <code>npm start</code>, enter your Correios SGD credentials and tracking codes,
+      then submit the form to download AR images and OCR output. Files are saved under <code>output/web/</code>.
+    </p>
+    <form id="arForm">
+      <div class="field">
+        <label for="sgdUser">SGD Username</label>
+        <input id="sgdUser" type="text" autocomplete="username" required />
+      </div>
+      <div class="field">
+        <label for="sgdPassword">SGD Password</label>
+        <input id="sgdPassword" type="password" autocomplete="current-password" required />
+      </div>
+      <div class="field">
+        <label for="codesInput">Tracking codes (one per line)</label>
+        <textarea id="codesInput" placeholder="YQ694553656BR&#10;YQ694554617BR"></textarea>
+      </div>
+      <div class="inline-controls">
+        <label for="limitInput">Limit</label>
+        <input id="limitInput" type="number" min="1" placeholder="All" />
+        <label><input id="skipOcrInput" type="checkbox" /> Skip OCR</label>
+      </div>
+      <button type="submit">Download AR batch</button>
+    </form>
+    <div id="arStatus" class="note"></div>
+    <pre id="arResults"></pre>
+  </section>
 
   <script>
     const consultBtn = document.getElementById('consultBtn');
     const resultEl = document.getElementById('result');
 
-    consultBtn.addEventListener('click', () => {
-      resultEl.textContent = 'Loading...';
+    if (consultBtn) {
+      consultBtn.addEventListener('click', () => {
+        resultEl.textContent = 'Loading...';
 
-      const code = document.getElementById('codeInput').value.trim();
-      const apiKey = document.getElementById('apiKeyInput').value.trim();
-      if (!code) {
-        resultEl.textContent = 'Please enter a tracking code.';
-        return;
-      }
-      if (!apiKey) {
-        resultEl.textContent = 'Please enter an API key.';
-        return;
-      }
-
-      const endpoint = `https://api.printpost.com.br/v1/letter/consult-ar/${code}`;
-      fetch(endpoint, {
-        method: 'GET',
-        headers: {
-          'X-Api-Key': apiKey
+        const code = document.getElementById('codeInput').value.trim();
+        const apiKey = document.getElementById('apiKeyInput').value.trim();
+        if (!code) {
+          resultEl.textContent = 'Please enter a tracking code.';
+          return;
         }
-      })
-        .then(async (res) => {
-          const text = await res.text();
-          if (!res.ok) {
-            throw new Error(`HTTP ${res.status} – ${text}`);
-          }
-          return text;
-        })
-        .then((text) => {
-          try {
-            const json = JSON.parse(text);
-            resultEl.textContent = JSON.stringify(json, null, 2);
-          } catch {
-            resultEl.textContent = text;
+        if (!apiKey) {
+          resultEl.textContent = 'Please enter an API key.';
+          return;
+        }
+
+        const endpoint = `https://api.printpost.com.br/v1/letter/consult-ar/${code}`;
+        fetch(endpoint, {
+          method: 'GET',
+          headers: {
+            'X-Api-Key': apiKey
           }
         })
-        .catch((err) => {
-          resultEl.textContent = `Error: ${err.message}`;
-        });
-    });
+          .then(async (res) => {
+            const text = await res.text();
+            if (!res.ok) {
+              throw new Error(`HTTP ${res.status} – ${text}`);
+            }
+            return text;
+          })
+          .then((text) => {
+            try {
+              const json = JSON.parse(text);
+              resultEl.textContent = JSON.stringify(json, null, 2);
+            } catch {
+              resultEl.textContent = text;
+            }
+          })
+          .catch((err) => {
+            resultEl.textContent = `Error: ${err.message}`;
+          });
+      });
+    }
+
+    const arForm = document.getElementById('arForm');
+    const arStatus = document.getElementById('arStatus');
+    const arResults = document.getElementById('arResults');
+
+    function parseCodesInput(text) {
+      return text
+        .split(/[\r\n,]+/)
+        .map((code) => code.trim())
+        .filter(Boolean);
+    }
+
+    if (arForm) {
+      arForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        arStatus.textContent = 'Submitting request...';
+        arResults.textContent = '';
+
+        const username = document.getElementById('sgdUser').value.trim();
+        const password = document.getElementById('sgdPassword').value;
+        const codesInput = document.getElementById('codesInput').value;
+        const limitValue = document.getElementById('limitInput').value;
+        const skipOcr = document.getElementById('skipOcrInput').checked;
+
+        if (!username || !password) {
+          arStatus.textContent = 'Please enter your SGD credentials.';
+          return;
+        }
+
+        const payload = {
+          username,
+          password,
+          skipOcr,
+        };
+
+        const codes = parseCodesInput(codesInput);
+        if (codes.length) {
+          payload.codes = codes;
+        }
+
+        if (limitValue) {
+          const numericLimit = Number(limitValue);
+          if (Number.isFinite(numericLimit) && numericLimit > 0) {
+            payload.limit = numericLimit;
+          }
+        }
+
+        try {
+          const response = await fetch('/api/fetch-ar', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+          });
+
+          const data = await response.json().catch(() => null);
+          if (!response.ok || !data || data.success !== true) {
+            const errorMessage = data && data.error ? data.error : `HTTP ${response.status}`;
+            throw new Error(errorMessage);
+          }
+
+          arStatus.textContent = `Finished. Saved under ${data.outputDir}.`;
+
+          if (Array.isArray(data.results)) {
+            const lines = data.results.map((item) => {
+              if (item.status === 'OK') {
+                return `${item.code} – ${item.reason || 'Success'}`;
+              }
+              return `${item.code} – ERROR: ${item.error}`;
+            });
+            arResults.textContent = lines.join('\n');
+          } else {
+            arResults.textContent = '';
+          }
+
+          if (data.summary) {
+            const summaryLines = [
+              '',
+              'Summary:',
+              `  Success: ${data.summary.succeeded ?? 'n/a'}`,
+              `  Failed: ${data.summary.failed ?? 'n/a'}`,
+              `  Total: ${data.summary.total ?? 'n/a'}`,
+            ];
+            arResults.textContent += summaryLines.join('\n');
+          }
+        } catch (error) {
+          arStatus.textContent = `Error: ${error.message}`;
+        }
+      });
+    }
   </script>
 </body>
 </html>

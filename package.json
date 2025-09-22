@@ -1,6 +1,12 @@
 {
   "name": "data-scrapper",
   "version": "1.0.0",
+  "description": "Toolkit for consulting Correios AR data and automating AR downloads with OCR.",
+  "main": "index.js",
+  "scripts": {
+    "fetch-ar": "node scripts/fetch_ar.js",
+    "start": "node scripts/server.js",
+
   "description": "This repository contains a simple static webpage for querying the [Printpost letter API](https://api.printpost.com.br/v1/letter/consult-ar/).",
   "main": "index.js",
   "scripts": {
@@ -13,10 +19,13 @@
   "type": "commonjs",
   "dependencies": {
     "cheerio": "^1.1.2",
+    "express": "^4.19.2",
     "p-limit": "^7.1.1",
     "proxy-agent": "^6.5.0",
     "sharp": "^0.34.4",
     "tesseract.js": "^6.0.1",
+    "tough-cookie": "^5.1.2",
+    "undici": "^6.19.8"
     "tough-cookie": "^5.1.2"
   }
 }
