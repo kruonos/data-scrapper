@@ -6,6 +6,7 @@
   "scripts": {
     "fetch-ar": "node scripts/fetch_ar.js",
     "start": "node scripts/server.js",
+    "check-conflicts": "node scripts/check_conflicts.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
